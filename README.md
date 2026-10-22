@@ -40,12 +40,12 @@ Two files go into the Fiji folder (`/Applications/Fiji` on this Mac):
 | `Side_Toolbar.jar` | `plugins/` |
 | `Side_Toolbar_Startup.ijm` | `macros/AutoRun/` (shows the bar when Fiji starts) |
 
-From the source folder, with Fiji closed:
+With Fiji closed:
 
 ```bash
 git clone https://github.com/AIHector/Fiji-Side-Toolbar.git
 cd Fiji-Side-Toolbar
-./test.sh    # 80 headless unit tests
+./test.sh    # 95 headless unit tests
 ./build.sh   # compiles with Fiji's own Java, installs both files
 ```
 
@@ -155,6 +155,7 @@ The shelves are saved in `~/Library/Preferences/IJ_Side_Toolbar_Shelves.txt` aft
 | Path | Content |
 |---|---|
 | `~/Library/Preferences/IJ_Side_Toolbar.txt` | The bar's buttons, one per line (readable; edit only with Fiji closed) |
+| `~/Library/Preferences/IJ_Side_Toolbar_Shelves.txt` | The shelf bars: their places, sections and pinned buttons |
 | `~/Library/Preferences/IJ_Prefs.txt` | The settings, keys `sidetoolbar.*` |
 
 The contents file is written through a temporary file, so a crash never leaves it half-written. Example:
@@ -230,3 +231,7 @@ Tested on 21 October 2026 with Fiji 2.18 / ImageJ 1.54p / Java 21 on macOS (1512
 - The blue outline while an image is dragged over the bar was not seen in the test captures (the image opened correctly on drop).
 - Two displays, the Dock on the left or right side of the screen, GUI scales other than 1.
 - Plugin tools with their own right-click menu (*Tool menu...*).
+
+# License
+
+MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
