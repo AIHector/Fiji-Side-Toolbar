@@ -13,7 +13,7 @@ Fiji's toolbar is a fixed horizontal strip. **Side Toolbar** turns it into a ver
 - **Remove a button:** drag it off the bar (a red cross appears on it), or right-click › **Remove**. Every change can be undone.
 - **Add buttons:** click **+** at the bottom of the bar and search every Fiji command and tool. Double-click an entry, or drag it onto the bar where you want it. Macro and script files dragged onto the bar from the Finder become buttons.
 - **Open images:** drag image files or folders from the Finder onto the bar; they open in Fiji, as they did when dropped on ImageJ's old toolbar (the bar is outlined in blue while you drag).
-- **One button at the bottom, +,** adds buttons and holds the bar's own menu (settings, undo, export, import, reset, classic toolbar, help).
+- **Two small buttons at the bottom:** **+** (above) adds buttons; **•••** (below) holds the bar's own menu (settings, undo, export, import, reset, classic toolbar, help). They are compact rows, so the default toolbar still fits one column on a 14-inch screen.
 - **Undo History:** when that plugin is installed, an *Undo History* button (a blue curved arrow) is added once, above **»**.
 - **Edit a button:** name, icon, command options, macro code. Icons can be ImageJ's tool pictures, the icons of macro tools, image files, letters or emoji.
 - **Groups:** one button that opens a menu of buttons.
@@ -77,7 +77,7 @@ A click runs the command, macro or script. Commands without options open their d
 |---|---|
 | Move a button | Drag it; release where the dashed gap is |
 | Remove a button | Drag it off the bar until a red cross appears, release; or right-click › Remove |
-| Undo | The notice "Removed ... Undo" that appears beside the bar, or right-click › Undo, or **+** › Undo, or *Plugins › Side Toolbar › Undo Side Toolbar Change* |
+| Undo | The notice "Removed ... Undo" that appears beside the bar, or right-click › Undo, or **•••** › Undo, or *Plugins › Side Toolbar › Undo Side Toolbar Change* |
 | Add buttons | **+** › Add Buttons..., search, double-click or drag onto the bar |
 | Add a recent command | **+** › Recent Commands |
 | Add a macro / a script file | **+** › Macro Button... / Script or Macro File..., or drag the file from the Finder onto the bar (.ijm .py .groovy .js .bsh .rb .clj .scala .r) |
@@ -100,7 +100,7 @@ A click runs the command, macro or script. Commands without options open their d
 
 ## Settings
 
-**+** › *Side Toolbar Settings...* or *Plugins › Side Toolbar › Side Toolbar Settings...*
+**•••** › *Side Toolbar Settings...* or *Plugins › Side Toolbar › Side Toolbar Settings...*
 
 | Setting | Choices | Default |
 |---|---|---|
@@ -118,6 +118,37 @@ Start Side Toolbar · Add Buttons to Side Toolbar... · Side Toolbar Settings...
 - **Export / Import** save and load the bar's contents as a text file, to keep versions or share them.
 - **Reset** restores ImageJ's tools in their usual order (undoable).
 - **Show Classic Toolbar** brings back ImageJ's own toolbar and window and switches the side toolbar off, also at the next start. *Start Side Toolbar* switches it on again with the same buttons.
+
+# The shelf: open tools, image previews, macro buttons
+
+A second kind of bar, the **shelf**, sits at the bottom of the screen by default (56 px high), between the toolbar and the right edge. It has three sections:
+
+| Section | Shows | Click | Right-click |
+|---|---|---|---|
+| **Tools** (left) | the tools you pinned (ROI Manager, B&C, Channels, Results, Log, Undo History by default), then any other open tool window. A dot under a tool means its window is open; a faded tool is closed | open tool: bring it to the front; closed tool: open it | bring to front, close the window, keep it in the shelf (pin), rename / initials / icon, move earlier or later, remove |
+| **Images** (centre) | a live preview of each open image (redrawn at most twice a second); the active image is outlined in blue. Many images scroll with the mouse wheel | bring the image to the front | Duplicate, Copy to Clipboard (to paste in other apps), Copy (ImageJ), **Place on Screen** (halves, quarters, thirds, centre, whole screen, back to where it was), **Move to Display** (next, previous), **Apply Layout** (0 to 9), **Zoom**, **Image** (rename, properties, info), **Undo History**, Save, **Save As** (TIFF, PNG, JPEG, GIF, BMP, TIFF in ZIP, OME-TIFF through Bio-Formats, AVI for stacks, PDF with one page per plane), Close |
+| **Macros** (right) | one button per macro file (.ijm), with a name, initials or icon you choose; **+** adds one | runs the macro: on the image if one is open; with several, a dialog asks which (the active one is ticked; *All open images* ticks them all) | run, run on chosen images, edit the macro, rename / initials / icon, move, remove (the file stays) |
+
+**Adding macros:** **+** › *Add Macro File (.ijm)...*, or *New Macro...* (creates the file in Fiji's `macros/Side Toolbar` folder and opens it in the editor), or drop .ijm files on the shelf. Images dropped on the shelf open in Fiji.
+
+**Every image in a folder (optional).** Off by default, to spare memory. When switched on in the settings, the image dialog offers it: each image of the folder is opened without being shown, processed, saved as TIFF in a folder you choose, and closed before the next, so only one is in memory at a time.
+
+**Moving things.** Right-click an empty part of a section:
+
+- *‹Section› Section* › move it **to the bottom bar**, **to a bar at the top**, **as a column beside the toolbar**, **as a column at the right edge**, or **to a new floating bar**; move it left or right (up or down) within its bar; hide it.
+- *This Bar* › place the whole bar at the bottom, at the top, beside the toolbar, at the right edge, or floating; show hidden sections again; size and options; undo the last bar change.
+
+A floating bar moves when you drag its empty area; **drag it onto a docked bar** (it is outlined in blue) and its sections join that bar where you drop them (on the right of the activity bar if you drop it there). Every position in these menus has a small picture of where things go on the screen. Descriptions shown when the mouse rests on a button open on the side away from the bar and always fit on the screen. Bars and columns stay open until you close or hide them; docked ones push the windows aside (Window Layouts keeps clear of all of them).
+
+**Settings** (*+* › *Side Toolbar Settings...*): show the shelf, its size (36 to 120 px: the height of a bar, the width of a column), and whether macros may run on a whole folder.
+
+The shelves are saved in `~/Library/Preferences/IJ_Side_Toolbar_Shelves.txt` after every change.
+
+# Going back to ImageJ's horizontal toolbar
+
+- **To show it:** **•••** › *Show Classic Toolbar* (or *Plugins › Side Toolbar › Show Classic Toolbar*). The side toolbar and the shelf close, ImageJ's own window with its horizontal toolbar comes back, and it stays so at the next start.
+- **To hide it again:** *Plugins › Side Toolbar › Start Side Toolbar*. Your buttons and shelves come back as they were.
+- **Both at once:** *Side Toolbar Settings...* › *ImageJ status bar* › *Classic ImageJ window (with its own toolbar too)*.
 
 # Files
 

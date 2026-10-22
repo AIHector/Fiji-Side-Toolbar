@@ -22,6 +22,7 @@ public class StoreTests {
 		groups();
 		syncAndDismissed();
 		titles();
+		shelves();
 		System.out.println(passed + " passed, " + failed + " failed");
 		System.exit(failed == 0 ? 0 : 1);
 	}
@@ -112,6 +113,48 @@ public class StoreTests {
 		Store.items.add(Item.tool("text"));
 		eq("test", Store.undoDescription(), "undo description");
 		check(Store.undo() || true, "undo runs");
+	}
+
+	static void shelves() {
+		java.util.List<Shelf> d = Shelf.defaults();
+		eq(1, d.size(), "one default shelf");
+		eq("bottom", d.get(0).place, "at the bottom");
+		eq("[windows, images, macros]", kinds(d.get(0)), "tools left, images centre, macros right");
+		eq(6, d.get(0).sections.get(0).items.size(), "six pinned tools by default");
+		Shelf f = new Shelf();
+		f.place = "float"; f.x = 321; f.y = 654;
+		Shelf.Section m = new Shelf.Section(Shelf.MACROS);
+		Item it = new Item(Item.Kind.SCRIPT, "/tmp/a b/My Macro.ijm");
+		it.label = "Mine"; it.icon = "text:\ud83e\uddea"; it.color = "#123456";
+		m.items.add(it);
+		m.hidden = true;
+		f.sections.add(m);
+		Shelf.all.clear();
+		Shelf.all.addAll(d);
+		Shelf.all.add(f);
+		String text = Shelf.serialize();
+		java.util.List<Shelf> back = Shelf.parse(text);
+		eq(2, back.size(), "two shelves read back");
+		eq("float", back.get(1).place, "floating shelf kept");
+		eq(321, back.get(1).x, "its x kept");
+		eq(654, back.get(1).y, "its y kept");
+		check(back.get(1).sections.get(0).hidden, "a hidden section stays hidden (its macros kept)");
+		Item r = back.get(1).sections.get(0).items.get(0);
+		eq("/tmp/a b/My Macro.ijm", r.target, "macro path kept");
+		eq("text:\ud83e\uddea", r.icon, "macro icon kept");
+		eq("Mine", r.label, "macro name kept");
+		eq("Undo History", back.get(0).sections.get(0).items.get(5).args, "pinned tool remembers its window title");
+		check(back.get(1).shown().isEmpty(), "shown() leaves hidden sections out");
+		Shelf.all.clear();
+		Shelf.all.addAll(back);
+		eq(text, Shelf.serialize(), "writing again gives the same text");
+		Shelf.all.clear();
+	}
+
+	static String kinds(Shelf s) {
+		java.util.List<String> l = new java.util.ArrayList<String>();
+		for (Shelf.Section c : s.sections) l.add(c.kind);
+		return l.toString();
 	}
 
 	static void titles() {

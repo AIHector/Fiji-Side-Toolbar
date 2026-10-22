@@ -132,8 +132,11 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 
 	int footerHeight() { return Math.max(18, (int) Math.round(buttonSize() * 0.62)); }
 
-	/** Height kept free at the bottom for the + button. */
-	int footerReserve(int c) { return footerHeight() + PAD + GAP; }
+	/** The + and ••• buttons: two compact rows, + above •••. */
+	int footerRow() { return Math.max(14, (int) Math.round(buttonSize() * 0.5)); }
+
+	/** Height kept free at the bottom for the + and ••• buttons. */
+	int footerReserve(int c) { return 2 * footerRow() + GAP + PAD; }
 
 	/** Entries shown now: toolbar tools that ImageJ has not loaded are kept but not shown. */
 	List<Item> visible() {
@@ -203,9 +206,10 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 			entries.add(Math.min(dropIndex, entries.size()), GAP_MARK);
 		target.clear();
 		place(entries, cols, getHeight(), target);
-		int fh = footerHeight();
-		plusR = new Rectangle(PAD, getHeight() - fh - PAD, getWidth() - 2 * PAD, fh);
-		menuR = plusR; // one button holds adding and the toolbar's own menu
+		// + (add buttons) above ••• (the toolbar's menu), each a compact row
+		int fh = footerRow();
+		menuR = new Rectangle(PAD, getHeight() - fh - PAD, getWidth() - 2 * PAD, fh);
+		plusR = new Rectangle(PAD, menuR.y - GAP - fh, getWidth() - 2 * PAD, fh);
 		for (Map.Entry<Object, Rectangle> e : target.entrySet())
 			if (!shown.containsKey(e.getKey())) shown.put(e.getKey(), new double[] {e.getValue().x, e.getValue().y});
 		shown.keySet().retainAll(target.keySet());
@@ -277,6 +281,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 			paintButton(g, it, r);
 		}
 		paintFooterButton(g, plusR, "+", pressedFooter && pressPoint != null && plusR.contains(pressPoint));
+		paintFooterButton(g, menuR, "\u2022\u2022\u2022", pressedFooter && pressPoint != null && menuR.contains(pressPoint));
 		if (openHint) {
 			g.setColor(new Color(45, 110, 200, 40));
 			g.fillRect(0, 0, getWidth(), getHeight());
@@ -329,7 +334,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 			g.fillRoundRect(r.x, r.y, r.width, r.height, 8, 8);
 		}
 		g.setColor(new Color(90, 90, 90));
-		Font f = getFont().deriveFont(Font.BOLD, text.equals("+") ? r.height * 0.8f : r.height * 0.42f);
+		Font f = getFont().deriveFont(Font.BOLD, text.equals("+") ? r.height * 0.8f : Math.min(r.height * 0.42f, r.width * 0.3f));
 		g.setFont(f);
 		FontMetrics fm = g.getFontMetrics();
 		g.drawString(text, r.x + (r.width - fm.stringWidth(text)) / 2, r.y + (r.height - fm.getHeight()) / 2 + fm.getAscent());
@@ -393,7 +398,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 		pressPoint = e.getPoint();
 		if (e.isPopupTrigger()) { contextMenu(e); return; }
 		if (!SwingUtilities.isLeftMouseButton(e)) return;
-		if (plusR.contains(e.getPoint())) { pressedFooter = true; repaint(); return; }
+		if (plusR.contains(e.getPoint()) || menuR.contains(e.getPoint())) { pressedFooter = true; repaint(); return; }
 		pressed = itemAt(e.getPoint());
 		if (pressed == null) return;
 		// tools are selected on press, as in ImageJ; menus and commands act on release, so a drag can move them
@@ -425,6 +430,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 		if (menuShowing) { menuShowing = false; return; }
 		if (footer) {
 			if (plusR.contains(e.getPoint())) addMenu(e, -1);
+			else if (menuR.contains(e.getPoint())) mainMenu(e);
 			return;
 		}
 		if (it == null || it != itemAt(e.getPoint()) || !SwingUtilities.isLeftMouseButton(e)) return;
@@ -854,7 +860,12 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 		m.add(Bridge.item("Group...", () -> Editor.newGroup(at)));
 		m.add(Bridge.item("Separator", () -> insert(single(new Item(Item.Kind.SEPARATOR, "")), null, at)));
 		m.add(Bridge.item("Spring (push the rest down)", () -> insert(single(new Item(Item.Kind.SPRING, "")), null, at)));
-		m.addSeparator();
+		showMenu(m, plusR.x + plusR.width, plusR.y);
+	}
+
+	/** The ••• button: the toolbar's own menu. */
+	private void mainMenu(MouseEvent e) {
+		JPopupMenu m = new JPopupMenu();
 		final String u = Store.undoDescription();
 		JMenuItem undo = Bridge.item(u != null ? "Undo: " + u : "Undo", () -> undo());
 		undo.setEnabled(u != null);
@@ -866,7 +877,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 		m.addSeparator();
 		m.add(Bridge.item("Show Classic Toolbar", () -> Side_Toolbar.stop()));
 		m.add(Bridge.item("Help", () -> Side_Toolbar.help()));
-		showMenu(m, plusR.x + plusR.width, plusR.y);
+		showMenu(m, menuR.x + menuR.width, menuR.y);
 	}
 
 	void undo() {
@@ -1016,6 +1027,14 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 		static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"); }
 
 		void show(String html, Rectangle anchor, boolean leftOfAnchor, Runnable click, int ms) {
+			show(html, anchor, leftOfAnchor ? "left" : "right", click, ms);
+		}
+
+		/**
+		 * Shows the tip beside the anchor on the given side ("above", "below", "left", "right"), on the other side
+		 * when there is no room, and always entirely on the anchor's screen.
+		 */
+		void show(String html, Rectangle anchor, String side, Runnable click, int ms) {
 			hide();
 			action = click;
 			w = new JWindow();
@@ -1038,9 +1057,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 			}
 			w.getContentPane().add(label);
 			w.pack();
-			int x = leftOfAnchor ? anchor.x - w.getWidth() - 6 : anchor.x + anchor.width + 6;
-			int y = anchor.y + (anchor.height - w.getHeight()) / 2;
-			w.setLocation(x, Math.max(0, y));
+			w.setLocation(place(anchor, side, w.getWidth(), w.getHeight()));
 			w.setAlwaysOnTop(true);
 			w.setVisible(true);
 			if (ms > 0) {
@@ -1048,6 +1065,34 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 				hideTimer.setRepeats(false);
 				hideTimer.restart();
 			}
+		}
+
+		static java.awt.Point place(Rectangle a, String side, int W, int H) {
+			Rectangle scr = screenOf(new java.awt.Point(a.x + a.width / 2, a.y + a.height / 2));
+			int x, y;
+			if (side.equals("above") || side.equals("below")) {
+				x = a.x + (a.width - W) / 2;
+				y = side.equals("above") ? a.y - H - 6 : a.y + a.height + 6;
+				if (y < scr.y) y = a.y + a.height + 6;                  // no room above: below
+				if (y + H > scr.y + scr.height) y = a.y - H - 6;         // no room below: above
+			} else {
+				y = a.y + (a.height - H) / 2;
+				x = side.equals("left") ? a.x - W - 6 : a.x + a.width + 6;
+				if (x < scr.x) x = a.x + a.width + 6;
+				if (x + W > scr.x + scr.width) x = a.x - W - 6;
+			}
+			x = Math.max(scr.x + 2, Math.min(x, scr.x + scr.width - W - 2));
+			y = Math.max(scr.y + 2, Math.min(y, scr.y + scr.height - H - 2));
+			return new java.awt.Point(x, y);
+		}
+
+		/** The usable area (without menu bar and Dock) of the screen holding the point. */
+		static Rectangle screenOf(java.awt.Point p) {
+			for (java.awt.GraphicsDevice d : java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+				java.awt.GraphicsConfiguration gc = d.getDefaultConfiguration();
+				if (gc.getBounds().contains(p)) return Chrome.usable(gc);
+			}
+			return Chrome.usable(Chrome.screen());
 		}
 
 		void hide() {

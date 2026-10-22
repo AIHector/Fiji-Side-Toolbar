@@ -58,7 +58,10 @@ public class Side_Toolbar implements PlugIn {
 			Store.persistPrefs();
 		}
 		new Dock(IJ.getInstance());
+		Shelf.load();
+		if (Shelf.enabled()) for (Shelf s : Shelf.all) if (s.view == null) s.view = new ShelfView(s);
 		Chrome.apply();
+		for (Shelf s : Shelf.all) if (s.view != null) s.view.rebuild();
 		OnTop.install();
 		OnTop.update();
 	}
@@ -81,6 +84,7 @@ public class Side_Toolbar implements PlugIn {
 	/** Back to ImageJ's own toolbar; the side toolbar's contents are kept for next time. */
 	static void stop() {
 		if (Dock.instance != null) Dock.instance.dispose();
+		Shelf.hideAll();
 		Chrome.restoreClassic();
 		Prefs.set("sidetoolbar.enabled", false);
 		Store.persistPrefs();
@@ -107,6 +111,10 @@ public class Side_Toolbar implements PlugIn {
 		gd.addCheckbox("Show button names beside the icons", Store.labels());
 		gd.addChoice("ImageJ status bar:", status, status[st]);
 		gd.addCheckbox("Keep the toolbar above Fiji's windows", Store.onTop());
+		gd.addMessage("Shelf (open tools, image previews, macro buttons):");
+		gd.addCheckbox("Show the shelf", Shelf.enabled());
+		gd.addNumericField("Shelf size:", Shelf.size(), 0, 4, "px (height of a bar, width of a column; 36 to 120)");
+		gd.addCheckbox("Macro buttons may also run on every image in a folder (one at a time)", Shelf.folderMacros());
 		gd.addMessage("Toolbar contents: " + Store.file().getPath(), null, java.awt.Color.gray);
 		gd.addHelp(helpHtml());
 		gd.showDialog();
@@ -117,11 +125,14 @@ public class Side_Toolbar implements PlugIn {
 		Prefs.set("sidetoolbar.labels", gd.getNextBoolean());
 		Prefs.set("sidetoolbar.status", statusKeys[gd.getNextChoiceIndex()]);
 		Prefs.set("sidetoolbar.ontop", gd.getNextBoolean());
+		Prefs.set("sidetoolbar.shelves", gd.getNextBoolean());
+		Prefs.set("sidetoolbar.shelfsize", Math.max(36, Math.min(120, (int) gd.getNextNumber())));
+		Prefs.set("sidetoolbar.foldermacros", gd.getNextBoolean());
 		Store.persistPrefs();
 		SwingUtilities.invokeLater(() -> {
 			start();
+			Shelf.showAll(); // also hides the shelves when switched off, and re-arranges the windows
 			OnTop.update();
-			rearrangeWindows();
 		});
 	}
 
@@ -164,7 +175,7 @@ public class Side_Toolbar implements PlugIn {
 
 	static void reset() {
 		if (!IJ.showMessageWithCancel("Side Toolbar", "Replace the toolbar's buttons with the default set\n"
-			+ "(ImageJ's tools in their usual order)?\n \nYou can undo this from the toolbar's + menu.")) return;
+			+ "(ImageJ's tools in their usual order)?\n \nYou can undo this from the toolbar's \u2022\u2022\u2022 menu.")) return;
 		Store.load();
 		Store.checkpoint("Reset");
 		Store.items.clear();
@@ -194,7 +205,7 @@ public class Side_Toolbar implements PlugIn {
 			+ "<li><b>Edit</b> a button (name, icon, command options, macro code): right-click &gt; Edit Button.</li>"
 			+ "<li><b>Group</b> buttons: + &gt; Group, then drag buttons onto the middle of the group.</li>"
 			+ "<li><b>Spring</b>: empty space that pushes the next buttons to the bottom of the bar.</li>"
-			+ "<li>The same <b>+</b> menu also holds settings, undo, export, import, reset, and the classic toolbar.</li>"
+			+ "<li><b>\u2022\u2022\u2022</b> (beside +): settings, undo, export, import, reset, and the classic toolbar.</li>"
 			+ "</ul>"
 			+ "<p>Every change is saved at once to " + Store.file().getPath() + ".</p>"
 			+ "</body></html>";

@@ -33,10 +33,15 @@ final class OnTop {
 		Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.WINDOW_FOCUS_EVENT_MASK);
 	}
 
+	/** Whether Fiji's bars should float above its windows now. */
+	static boolean wanted() { return Store.onTop() && fijiActive; }
+
 	static void update() {
 		Dock d = Dock.instance;
 		if (d == null) return;
 		boolean want = Store.onTop() && fijiActive;
 		if (d.window.isAlwaysOnTop() != want) d.window.setAlwaysOnTop(want);
+		for (Shelf s : Shelf.all)
+			if (s.view != null && s.view.window.isAlwaysOnTop() != want) s.view.window.setAlwaysOnTop(want);
 	}
 }

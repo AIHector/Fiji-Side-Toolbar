@@ -61,13 +61,48 @@ final class Chrome {
 			lastUsable = u;
 			d.chooseColumns(u.height);
 			int w = d.preferredWidth();
-			Rectangle db = Store.side().equals("right") ? new Rectangle(u.x + u.width - w, u.y, w, u.height)
-				: new Rectangle(u.x, u.y, w, u.height);
+			boolean dockRight = Store.side().equals("right");
+			int left = u.x, right = u.x + u.width, top = u.y, bottom = u.y + u.height;
+			Rectangle db;
+			if (dockRight) { right -= w; db = new Rectangle(right, u.y, w, u.height); }
+			else { db = new Rectangle(left, u.y, w, u.height); left += w; }
 			d.window.setBounds(db);
 			if (!d.window.isVisible()) d.window.setVisible(true);
-			System.getProperties().put(RESERVED, new Rectangle(db));
+			java.util.List<Rectangle> reserved = new java.util.ArrayList<Rectangle>();
+			reserved.add(new Rectangle(db));
+			// shelves shown as columns: on the left (beside the toolbar when it is on the left) or on the right
+			for (Shelf s : Shelf.all) {
+				if (s.view == null || s.horizontal()) continue;
+				int t = s.view.thickness();
+				Rectangle r;
+				if (s.place.equals("left")) { r = new Rectangle(left, u.y, t, u.height); left += t; }
+				else { right -= t; r = new Rectangle(right, u.y, t, u.height); }
+				show(s, r);
+				reserved.add(r);
+			}
 			ij.pack();
-			placeStrip(ij, u, db, classic);
+			int stripH = classic ? 0 : ij.getHeight();
+			boolean stripTop = !Store.status().equals("bottom");
+			if (!classic && stripTop) { stripRect(ij, new Rectangle(left, top, right - left, stripH), true); top += stripH; }
+			for (Shelf s : Shelf.all) {
+				if (s.view == null || !s.place.equals("top")) continue;
+				Rectangle r = new Rectangle(left, top, right - left, Shelf.size());
+				top += r.height;
+				show(s, r);
+				reserved.add(r);
+			}
+			for (Shelf s : Shelf.all) {
+				if (s.view == null || !s.place.equals("bottom")) continue;
+				Rectangle r = new Rectangle(left, bottom - Shelf.size(), right - left, Shelf.size());
+				bottom -= r.height;
+				show(s, r);
+				reserved.add(r);
+			}
+			if (!classic && !stripTop) stripRect(ij, new Rectangle(left, bottom - stripH, right - left, stripH), false);
+			if (classic) ij.setLocation(dockRight ? db.x - ij.getWidth() : db.x + db.width, u.y);
+			for (Shelf s : Shelf.all) if (s.view != null && s.place.equals("float")) s.view.placeFloating();
+			System.getProperties().put(RESERVED, new Rectangle(db));
+			System.getProperties().put(RESERVED_ALL, reserved);
 			watch(ij);
 		} finally {
 			applying = false;
@@ -75,17 +110,29 @@ final class Chrome {
 		d.relayout();
 	}
 
-	/** The ImageJ window: a strip beside the bar, or (classic) its usual form at the top, next to the bar. */
-	static void placeStrip(ImageJ ij, Rectangle u, Rectangle db, boolean classic) {
-		boolean right = Store.side().equals("right");
-		int x = right ? u.x : db.x + db.width;
-		if (classic) {
-			ij.setLocation(right ? db.x - ij.getWidth() : x, u.y);
-			return;
-		}
-		int w = u.width - db.width, h = ij.getHeight();
-		int y = Store.status().equals("bottom") ? u.y + u.height - h : u.y;
-		Rectangle want = new Rectangle(x, y, w, h);
+	static final String RESERVED_ALL = "sidetoolbar.reservedAll";
+	/** Where the strip goes: its left edge and width, and its top (strip at the top) or bottom edge (at the bottom). */
+	private static int stripLeft, stripWidth, stripTopY, stripBottomY;
+	private static boolean stripAtTop = true;
+
+	private static void show(Shelf s, Rectangle r) {
+		if (!r.equals(s.view.window.getBounds())) s.view.window.setBounds(r);
+		if (!s.view.window.isVisible()) s.view.window.setVisible(true);
+	}
+
+	private static void stripRect(ImageJ ij, Rectangle r, boolean atTop) {
+		stripLeft = r.x;
+		stripWidth = r.width;
+		stripTopY = r.y;
+		stripBottomY = r.y + r.height;
+		stripAtTop = atTop;
+		placeStrip(ij);
+	}
+
+	/** The ImageJ window as a strip, keeping the height ImageJ gives it (it grows to show search results). */
+	static void placeStrip(ImageJ ij) {
+		int h = ij.getHeight();
+		Rectangle want = new Rectangle(stripLeft, stripAtTop ? stripTopY : stripBottomY - h, stripWidth, h);
 		if (!want.equals(ij.getBounds())) ij.setBounds(want);
 	}
 
@@ -102,7 +149,7 @@ final class Chrome {
 					Dock d = Dock.instance;
 					if (applying || d == null) return;
 					applying = true;
-					try { placeStrip(ij, usable(screen()), d.window.getBounds(), false); }
+					try { placeStrip(ij); }
 					finally { applying = false; }
 				});
 			}
@@ -143,6 +190,7 @@ final class Chrome {
 				ij.setLocation(u.x, u.y);
 			}
 			System.getProperties().remove(RESERVED);
+			System.getProperties().remove(RESERVED_ALL);
 		} finally {
 			applying = false;
 		}

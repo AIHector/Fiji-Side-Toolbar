@@ -189,6 +189,26 @@ public class TestHarness {
 					java.awt.Component c = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
 					out[0] = c instanceof javax.swing.text.JTextComponent ? "[" + ((javax.swing.text.JTextComponent) c).getText() + "] enabled=" + c.isEnabled() + " editable=" + ((javax.swing.text.JTextComponent) c).isEditable() + " keys=" + keys : "owner=" + c;
 				}
+				else if (what.equals("shelves")) {
+					StringBuilder b = new StringBuilder();
+					for (Shelf sh : Shelf.all) {
+						b.append(sh.place).append(' ').append(sh.view == null ? "hidden" : r(sh.view.window.getBounds())).append(" sections=");
+						for (Shelf.Section c : sh.shown()) b.append(c.kind).append('(').append(c.items.size()).append(") ");
+						b.append('\n');
+					}
+					out[0] = b.toString();
+				}
+				else if (what.startsWith("shelfmove:")) {
+					String[] a = what.substring(10).split(",");
+					Shelf.Section sec = null;
+					for (Shelf sh : Shelf.all) for (Shelf.Section c : sh.sections) if (c.kind.equals(a[0])) sec = c;
+					if (sec != null) Shelf.moveSection(sec, a[1]);
+				}
+				else if (what.startsWith("shelfplace:")) Shelf.moveShelf(Shelf.all.get(0), what.substring(11));
+				else if (what.startsWith("addmacro:")) {
+					for (Shelf sh : Shelf.all) for (Shelf.Section c : sh.sections)
+						if (c.kind.equals("macros")) { c.items.add(MacroShelf.itemFor(new java.io.File(what.substring(9)))); Shelf.save(); Shelf.showAll(); return; }
+				}
 				else if (what.equals("count")) out[0] = "" + Dock.instance.visible().size();
 				else if (what.equals("front")) {
 					try { java.awt.Desktop.class.getMethod("requestForeground", boolean.class).invoke(java.awt.Desktop.getDesktop(), true); }
