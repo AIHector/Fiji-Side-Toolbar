@@ -127,6 +127,8 @@ Then start Fiji. To uninstall, delete the two files; ImageJ's toolbar comes back
 | Click *Dev*, *Stk*, *LUT* (menu tools) | Their menu |
 | Click **»** | Switch toolsets, add ImageJ's extra tools (Brush, Pencil, Arrow, Pixel Inspector, ...) |
 
+Escape closes any menu opened from the bar or the shelf. The bars never take the keyboard focus (a click on a tool leaves your image active), so the key is caught as it reaches Fiji's front window.
+
 A small red triangle marks a tool that has a menu, as on ImageJ's toolbar. The selected tool is highlighted. Moving the mouse over a button shows ImageJ's usual hint in the status strip and, after a moment, a tooltip beside the bar.
 
 When a toolset or plugin adds a tool to ImageJ's toolbar, it appears on the side toolbar just above **»**. When a toolset is switched off, its buttons are hidden but keep their place for the next time. A tool you removed yourself is not added back.

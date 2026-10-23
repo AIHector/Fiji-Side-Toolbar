@@ -43,12 +43,39 @@ public class Side_Toolbar implements PlugIn {
 		else if (arg.equals("help")) help();
 	}
 
+	private static boolean escapeInstalled;
+
+	/**
+	 * Escape closes a menu opened from the toolbar or a shelf bar. The bars never take the keyboard focus (so that a
+	 * click on a tool leaves the image active), so their menus never receive the key: it reaches the focused Fiji
+	 * window, and this dispatcher, which closes the menu and keeps the key from doing anything else.
+	 */
+	static void installEscape() {
+		if (escapeInstalled) return;
+		escapeInstalled = true;
+		java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
+			if (e.getID() != java.awt.event.KeyEvent.KEY_PRESSED || e.getKeyCode() != java.awt.event.KeyEvent.VK_ESCAPE) return false;
+			javax.swing.MenuElement[] path = javax.swing.MenuSelectionManager.defaultManager().getSelectedPath();
+			if (!ownMenu(path)) return false;
+			javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath();
+			return true;
+		});
+	}
+
+	/** Whether the open menu (its root popup) was opened from the toolbar or a shelf bar. */
+	static boolean ownMenu(javax.swing.MenuElement[] path) {
+		if (path == null || path.length == 0 || !(path[0] instanceof javax.swing.JPopupMenu)) return false;
+		java.awt.Component invoker = ((javax.swing.JPopupMenu) path[0]).getInvoker();
+		return invoker instanceof Dock || invoker instanceof ShelfView;
+	}
+
 	/** Shows the side toolbar (also called at startup by the AutoRun macro). */
 	static void start() {
 		if (Dock.instance != null) {
 			Chrome.apply();
 			return;
 		}
+		installEscape();
 		Store.load();
 		Store.sync(Bridge.slotNames());
 		addUndoHistoryButtonOnce();
