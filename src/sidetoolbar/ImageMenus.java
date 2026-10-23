@@ -22,11 +22,12 @@ final class ImageMenus {
 	static boolean has(String command) { return Menus.getCommands() != null && Menus.getCommands().get(command) != null; }
 
 	static void fill(JPopupMenu m, final ImagePlus imp) {
-		JLabel h = new JLabel(imp.getTitle());
+		JLabel h = new JLabel(ShelfView.nameOf(imp));
 		h.setFont(h.getFont().deriveFont(Font.BOLD, 11f));
 		h.setBorder(new EmptyBorder(2, 10, 2, 10));
 		m.add(h);
 		m.add(Bridge.item("Bring to Front", () -> ShelfView.bringToFront(imp)));
+		m.add(Bridge.item("Name in the Shelf...", () -> ShelfView.editImageName(imp)));
 		m.add(Bridge.item("Duplicate...", () -> onImage(imp, "Duplicate...")));
 		m.add(Bridge.item("Copy to Clipboard (paste in other apps)", () -> onImage(imp, "Copy to System")));
 		m.add(Bridge.item("Copy (ImageJ)", () -> onImage(imp, "Copy")));

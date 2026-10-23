@@ -69,6 +69,28 @@ final class ShelfView extends JComponent implements ImageListener {
 	private int imageScroll;
 	private int signature;
 	private final Dock.Tip tip = new Dock.Tip();
+	private Rectangle resizeFrom; // the bar's bounds when a drag of its inner edge started
+	private Point resizeStart;
+
+	/** Names the shelf shows instead of image titles (the images keep their titles); for this session only. */
+	private static final Map<ImagePlus, String> imageNames = java.util.Collections.synchronizedMap(new WeakHashMap<ImagePlus, String>());
+
+	static String nameOf(ImagePlus imp) {
+		String n = imageNames.get(imp);
+		return n == null || n.isEmpty() ? imp.getTitle() : n;
+	}
+
+	/** Asks for the name the shelf shows for an image; an empty name goes back to the image's title. */
+	static void editImageName(ImagePlus imp) {
+		ij.gui.GenericDialog gd = new ij.gui.GenericDialog("Name in the Shelf");
+		gd.addStringField("Name:", nameOf(imp), 28);
+		gd.addMessage("Only the shelf shows this name: the image keeps its title \"" + imp.getTitle() + "\".\nLeave it empty to show the title again.");
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		String n = gd.getNextString().trim();
+		if (n.isEmpty() || n.equals(imp.getTitle())) imageNames.remove(imp); else imageNames.put(imp, n);
+		for (Shelf sh : Shelf.all) if (sh.view != null) sh.view.repaint();
+	}
 
 	/** What a tile shows. */
 	static final class Tile {
@@ -398,7 +420,7 @@ final class ShelfView extends JComponent implements ImageListener {
 			g.setColor(Dock.TEXT);
 			g.setFont(new Font("SansSerif", Font.PLAIN, Math.max(9, labelH - 2)));
 			FontMetrics fm = g.getFontMetrics();
-			String name = Dock.ellipsize(t.imp.getTitle(), fm, r.width - 4);
+			String name = Dock.ellipsize(nameOf(t.imp), fm, r.width - 4);
 			g.drawString(name, r.x + (r.width - fm.stringWidth(name)) / 2, r.y + r.height - 3);
 			return;
 		}
@@ -463,8 +485,59 @@ final class ShelfView extends JComponent implements ImageListener {
 		return null;
 	}
 
+	/** The edge of the bar that faces the screen's middle: dragging it changes the bar size. */
+	private boolean onInnerEdge(Point p) {
+		final int E = 4;
+		switch (shelf.place) {
+			case "bottom": return p.y < E;
+			case "left": return p.x >= getWidth() - E;
+			case "right": return p.x < E;
+			default: return p.y >= getHeight() - E; // top, float
+		}
+	}
+
+	private Cursor edgeCursor() {
+		switch (shelf.place) {
+			case "bottom": return Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
+			case "left": return Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);
+			case "right": return Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
+			default: return Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
+		}
+	}
+
+	/** Follows a drag of the inner edge: sets the shelf size and resizes this bar from its outer edge. */
+	private void resizeTo(Point screen) {
+		int d;
+		switch (shelf.place) {
+			case "bottom": d = resizeStart.y - screen.y; break;
+			case "left": d = screen.x - resizeStart.x; break;
+			case "right": d = resizeStart.x - screen.x; break;
+			default: d = screen.y - resizeStart.y;
+		}
+		Rectangle b = resizeFrom;
+		int n = shelf.horizontal() ? 1 : Math.max(1, shelf.shown().size());
+		int start = shelf.horizontal() ? b.height : (b.width - (n - 1) * SEP) / n;
+		int size = Math.max(36, Math.min(120, start + d / n));
+		if (size == Shelf.size()) return;
+		ij.Prefs.set("sidetoolbar.shelfsize", size);
+		int th = thickness();
+		switch (shelf.place) {
+			case "bottom": window.setBounds(b.x, b.y + b.height - th, b.width, th); break;
+			case "left": window.setBounds(b.x, b.y, th, b.height); break;
+			case "right": window.setBounds(b.x + b.width - th, b.y, th, b.height); break;
+			default: window.setBounds(b.x, b.y, b.width, th);
+		}
+	}
+
 	private void pressed(MouseEvent e) {
 		tip.hide();
+		if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger() && onInnerEdge(e.getPoint())) {
+			resizeFrom = window.getBounds();
+			resizeStart = e.getLocationOnScreen();
+			pressed = null;
+			dragFrom = null;
+			return;
+		}
 		pressed = tileAt(e.getPoint());
 		dragFrom = shelf.docked() || pressed != null ? null : e.getLocationOnScreen();
 		if (e.isPopupTrigger()) { menu(e); pressed = null; }
@@ -472,6 +545,7 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private void dragged(MouseEvent e) {
+		if (resizeFrom != null) { resizeTo(e.getLocationOnScreen()); return; }
 		if (dragFrom == null) return; // a floating shelf moves when dragged by its empty area
 		Point now = e.getLocationOnScreen();
 		Point loc = window.getLocation();
@@ -510,6 +584,11 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private void released(MouseEvent e) {
+		if (resizeFrom != null) { // every bar takes the new size; windows move only if the bars' bands changed
+			resizeFrom = null;
+			Shelf.showAll();
+			return;
+		}
 		if (dragFrom != null) {
 			Shelf target = dockTarget(e.getLocationOnScreen());
 			for (Shelf s : Shelf.all) if (s.view != null) s.view.setDropHint(false);
@@ -529,6 +608,13 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private void moved(MouseEvent e) {
+		if (onInnerEdge(e.getPoint())) {
+			setCursor(edgeCursor());
+			if (hover != null) { hover = null; repaint(); }
+			tip.hide();
+			return;
+		}
+		setCursor(Cursor.getDefaultCursor());
 		Tile t = tileAt(e.getPoint());
 		if (t == hover) return;
 		hover = t;
@@ -536,7 +622,8 @@ final class ShelfView extends JComponent implements ImageListener {
 		repaint();
 		if (t == null) return;
 		String text;
-		if (t.kind.equals("image")) text = "<b>" + Dock.Tip.esc(t.imp.getTitle()) + "</b><br>" + t.imp.getWidth() + " × " + t.imp.getHeight()
+		if (t.kind.equals("image")) text = "<b>" + Dock.Tip.esc(nameOf(t.imp)) + "</b><br>"
+			+ (nameOf(t.imp).equals(t.imp.getTitle()) ? "" : "Image: " + Dock.Tip.esc(t.imp.getTitle()) + "<br>") + t.imp.getWidth() + " × " + t.imp.getHeight()
 			+ (t.imp.getStackSize() > 1 ? " × " + t.imp.getStackSize() : "") + "<br><font color='#777777'>Click: bring to front. Right-click: place, zoom, more</font>";
 		else if (t.kind.equals("add")) text = "Add a macro (.ijm file) to this shelf, or drop .ijm files here";
 		else if (t.kind.equals("macro")) text = "<b>" + Dock.Tip.esc(t.item.title()) + "</b><br>" + Dock.Tip.esc(new File(t.item.target).getName())
@@ -604,10 +691,13 @@ final class ShelfView extends JComponent implements ImageListener {
 		if (t.item == null) {
 			m.add(Bridge.item("Keep in Shelf (open it from here when it is closed)", () -> {
 				Shelf.checkpoint();
-				String title = titleOf(t.window);
-				String cmd = Menus.getCommands() != null && Menus.getCommands().get(title + "...") != null ? title + "..."
-					: Menus.getCommands() != null && Menus.getCommands().get(title) != null ? title : title;
-				Item it = Shelf.launcher(cmd, title, Icons.initials(title), "");
+				t.section.items.add(launcherFor(t.window));
+				Shelf.save();
+				rebuild();
+			}));
+			m.add(Bridge.item("Rename, Initials or Icon... (keeps it in the shelf)", () -> {
+				Item it = launcherFor(t.window);
+				if (!editLook(it)) return; // editLook saves the undo checkpoint
 				t.section.items.add(it);
 				Shelf.save();
 				rebuild();
@@ -622,6 +712,13 @@ final class ShelfView extends JComponent implements ImageListener {
 			}));
 			addMoveItems(m, t.section, t.item);
 		}
+	}
+
+	/** A pinned launcher for an open tool window: its menu command (with or without "..."), its title, its initials. */
+	private static Item launcherFor(Window w) {
+		String title = titleOf(w);
+		String cmd = Menus.getCommands() != null && Menus.getCommands().get(title + "...") != null ? title + "..." : title;
+		return Shelf.launcher(cmd, title, Icons.initials(title), "");
 	}
 
 	private void macroMenu(JPopupMenu m, final Tile t) {
