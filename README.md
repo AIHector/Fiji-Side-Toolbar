@@ -7,6 +7,7 @@
   <img alt="Java 8 or later" src="https://img.shields.io/badge/Java-8%2B-e76f00">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2ea043"></a>
   <img alt="Developed on macOS" src="https://img.shields.io/badge/developed%20on-macOS-555555">
+  <img alt="Windows and Linux: not yet tested" src="https://img.shields.io/badge/Windows%20%26%20Linux-not%20yet%20tested-lightgrey">
 </p>
 
 <p align="center">
@@ -32,7 +33,7 @@ ImageJ's own toolbar keeps running, hidden, underneath: every tool behaves exact
 |---|---|
 | **Every ImageJ tool, unchanged** | click to select, double-click for options, right-click for the tool's menu |
 | **Reshape it by dragging** | drag a button to move it, drag it off the bar to remove it; every change can be undone |
-| **Add anything** | **+** searches every Fiji command and tool; macro and script files dropped from the Finder become buttons |
+| **Add anything** | **+** searches every Fiji command and tool; macro and script files dropped from the Finder or Windows Explorer become buttons |
 | **Your own buttons** | any name, ImageJ tool picture, image file, letters or emoji as the icon; groups of buttons; springs |
 | **A shelf for your work** | open tool windows (and pinned launchers, like the macOS Dock), live image previews, one-click macros |
 | **Image previews that act** | right-click a preview to place it on the screen, duplicate, copy, zoom, save as TIFF, PNG, JPEG, PDF and more |
@@ -52,6 +53,8 @@ ImageJ's own toolbar keeps running, hidden, underneath: every tool behaves exact
 
 Each plugin works on its own; installed together, they share the screen and each other's commands.
 
+All three are written in Java 8 for any system Fiji runs on, and their shortcuts follow your system: **Cmd** on macOS, **Ctrl** on Windows and Linux. So far they have been tested on macOS only; reports from Windows and Linux are welcome in each repository's *Issues*.
+
 | Plugin | What it gives you |
 |---|---|
 | **Side Toolbar** (this one) | Fiji's toolbar as a vertical bar you can reshape freely, plus a shelf for open tools, live image previews and macro buttons |
@@ -68,8 +71,8 @@ Each plugin works on its own; installed together, they share the screen and each
 - **All of ImageJ's tools, unchanged.** Click to select a tool, double-click for its options, right-click (or hold the mouse button) for its menu: rectangle types, line types, point/multi-point, zoom menu, colour picker menu, macro and plugin tools, menu tools (*Dev*, *Stk*, *LUT*) and the **»** menu that switches toolsets.
 - **Move a button:** drag it. The other buttons slide aside to show where it will land.
 - **Remove a button:** drag it off the bar (a red cross appears on it), or right-click › **Remove**. Every change can be undone.
-- **Add buttons:** click **+** at the bottom of the bar and search every Fiji command and tool. Double-click an entry, or drag it onto the bar where you want it. Macro and script files dragged onto the bar from the Finder become buttons.
-- **Open images:** drag image files or folders from the Finder onto the bar; they open in Fiji, as they did when dropped on ImageJ's old toolbar (the bar is outlined in blue while you drag).
+- **Add buttons:** click **+** at the bottom of the bar and search every Fiji command and tool. Double-click an entry, or drag it onto the bar where you want it. Macro and script files dragged onto the bar from the Finder or Windows Explorer become buttons.
+- **Open images:** drag image files or folders from the Finder (or Windows Explorer) onto the bar; they open in Fiji, as they did when dropped on ImageJ's old toolbar (the bar is outlined in blue while you drag).
 - **Two small buttons at the bottom:** **+** (above) adds buttons; **•••** (below) holds the bar's own menu (settings, undo, export, import, reset, classic toolbar, help). They are compact rows, so the default toolbar still fits one column on a 14-inch screen.
 - **Undo History:** when that plugin is installed, an *Undo History* button (a blue curved arrow) is added once, above **»**.
 - **Edit a button:** name, icon, command options, macro code. Icons can be ImageJ's tool pictures, the icons of macro tools, image files, letters or emoji.
@@ -84,13 +87,15 @@ ImageJ's own toolbar is hidden, not removed: it keeps running underneath, and th
 
 Without its toolbar, the ImageJ window keeps only its status line, progress bar and Fiji's search bar. Side Toolbar turns it into a **status strip** across the top of the screen (or the bottom), beside the bar. The strip keeps its title bar: on macOS a window without one cannot receive typing, so Fiji's search bar and Cmd+Q would stop working. When you type in Fiji's search bar, the results open below it, as before.
 
+The strip keeps the height the ImageJ window has, so on Windows and Linux, where Fiji's menus are inside that window, the menus stay in the strip.
+
 The bar never takes the keyboard focus, so clicking a tool leaves your image active and Fiji's menu bar unchanged.
 
 **Window Layouts.** If the Window Layouts plugin is installed, its layouts fill the screen *beside* the bar and below (or above) the status strip. Changing the bar's side or width re-arranges the windows.
 
 ## Installation
 
-**From a release.** Download `Side_Toolbar-<version>.zip` from the [Releases](../../releases) page, unzip it, and copy the two files into your Fiji folder (on macOS, `Fiji.app` or the folder that contains it):
+**From a release.** Download `Side_Toolbar-<version>.zip` from the [Releases](../../releases) page, unzip it, and copy the two files into your Fiji folder (the one that contains `plugins/` and `macros/`: `Fiji.app` on Windows and Linux; on macOS, `Fiji.app` or the folder that contains it):
 
 | File | Where |
 |---|---|
@@ -139,8 +144,8 @@ A click runs the command, macro or script. Commands without options open their d
 | Undo | The notice "Removed ... Undo" that appears beside the bar, or right-click › Undo, or **•••** › Undo, or *Plugins › Side Toolbar › Undo Side Toolbar Change* |
 | Add buttons | **+** › Add Buttons..., search, double-click or drag onto the bar |
 | Add a recent command | **+** › Recent Commands |
-| Add a macro / a script file | **+** › Macro Button... / Script or Macro File..., or drag the file from the Finder onto the bar (.ijm .py .groovy .js .bsh .rb .clj .scala .r) |
-| Open an image or a folder | Drag it from the Finder onto the bar |
+| Add a macro / a script file | **+** › Macro Button... / Script or Macro File..., or drag the file from the Finder or Windows Explorer onto the bar (.ijm .py .groovy .js .bsh .rb .clj .scala .r) |
+| Open an image or a folder | Drag it from the Finder (or Windows Explorer) onto the bar |
 | Put a button in a group | Drag it onto the middle of the group button (the group is highlighted) |
 | Add a separator, spring, group | **+** menu, or right-click a button › Insert Below |
 | Edit | Right-click › Edit Button... |
@@ -203,7 +208,7 @@ A floating bar moves when you drag its empty area; **drag it onto a docked bar**
 
 **Settings** (*+* › *Side Toolbar Settings...*): show the shelf, its size (36 to 120 px: the height of a bar, the width of a column), and whether macros may run on a whole folder.
 
-The shelves are saved in `~/Library/Preferences/IJ_Side_Toolbar_Shelves.txt` after every change.
+The shelves are saved in `IJ_Side_Toolbar_Shelves.txt`, in ImageJ's settings folder, after every change.
 
 ## Going back to ImageJ's horizontal toolbar
 
@@ -213,11 +218,13 @@ The shelves are saved in `~/Library/Preferences/IJ_Side_Toolbar_Shelves.txt` aft
 
 ## Files
 
-| Path | Content |
+All three are in ImageJ's settings folder: `~/Library/Preferences/` on macOS, `.imagej` in your home folder on Windows and Linux.
+
+| File | Content |
 |---|---|
-| `~/Library/Preferences/IJ_Side_Toolbar.txt` | The bar's buttons, one per line (readable; edit only with Fiji closed) |
-| `~/Library/Preferences/IJ_Side_Toolbar_Shelves.txt` | The shelf bars: their places, sections and pinned buttons |
-| `~/Library/Preferences/IJ_Prefs.txt` | The settings, keys `sidetoolbar.*` |
+| `IJ_Side_Toolbar.txt` | The bar's buttons, one per line (readable; edit only with Fiji closed) |
+| `IJ_Side_Toolbar_Shelves.txt` | The shelf bars: their places, sections and pinned buttons |
+| `IJ_Prefs.txt` | The settings, keys `sidetoolbar.*` |
 
 The contents file is written through a temporary file, so a crash never leaves it half-written. Example:
 
