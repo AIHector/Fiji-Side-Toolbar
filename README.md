@@ -1,12 +1,69 @@
----
-title: "Fiji Side Toolbar"
-subtitle: "Fiji's toolbar as a vertical bar along the side of the screen, with buttons you can add, edit, move and remove freely"
-date: "21 October 2026"
----
+<h1 align="center">Fiji Side Toolbar</h1>
 
-# What it does
+<p align="center"><b>Fiji's toolbar as a vertical bar you can reshape freely, plus a shelf for your open tools, your images and your macros.</b></p>
 
-Fiji's toolbar is a fixed horizontal strip. **Side Toolbar** turns it into a vertical bar along the left (or right) edge of the screen and makes every button editable:
+<p align="center">
+  <img alt="Tested with Fiji 2.18 / ImageJ 1.54p" src="https://img.shields.io/badge/tested%20with-Fiji%202.18%20%2F%20ImageJ%201.54p-1f6feb">
+  <img alt="Java 8 or later" src="https://img.shields.io/badge/Java-8%2B-e76f00">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2ea043"></a>
+  <img alt="Developed on macOS" src="https://img.shields.io/badge/developed%20on-macOS-555555">
+</p>
+
+<p align="center">
+  <a href="#why">Why</a> ·
+  <a href="#highlights">Highlights</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#the-shelf-open-tools-image-previews-macro-buttons">The shelf</a> ·
+  <a href="#going-back-to-imagejs-horizontal-toolbar">Back to the classic toolbar</a>
+</p>
+
+![Side Toolbar: the vertical toolbar on the left, the status strip at the top, the shelf at the bottom](docs/overview.png)
+
+## Why
+
+Fiji's toolbar is a fixed horizontal strip: its buttons cannot be moved, renamed or replaced, and on a wide screen it takes height that images need. **Side Toolbar** turns it into a vertical bar along the edge of the screen in which every button can be added, moved, edited or removed, and adds a **shelf**: a bar that shows the tool windows you have open, a live preview of every open image and one button per macro.
+
+ImageJ's own toolbar keeps running, hidden, underneath: every tool behaves exactly as before, including tools that macros and plugins install later.
+
+## Highlights
+
+| Feature | What you get |
+|---|---|
+| **Every ImageJ tool, unchanged** | click to select, double-click for options, right-click for the tool's menu |
+| **Reshape it by dragging** | drag a button to move it, drag it off the bar to remove it; every change can be undone |
+| **Add anything** | **+** searches every Fiji command and tool; macro and script files dropped from the Finder become buttons |
+| **Your own buttons** | any name, ImageJ tool picture, image file, letters or emoji as the icon; groups of buttons; springs |
+| **A shelf for your work** | open tool windows (and pinned launchers, like the macOS Dock), live image previews, one-click macros |
+| **Image previews that act** | right-click a preview to place it on the screen, duplicate, copy, zoom, save as TIFF, PNG, JPEG, PDF and more |
+| **Macros on chosen images** | a macro button runs on the front image, on the images you tick, or (optionally) on every image of a folder |
+| **Fits your screen** | one, two or three columns; shelf bars at the bottom, the top, beside the toolbar, at the right edge or floating; drag a bar's edge to resize it |
+| **Easy to leave** | one command brings ImageJ's horizontal toolbar back; deleting two files uninstalls it |
+
+## Quick start
+
+1. Install the two files (see [Installation](#installation)) and restart Fiji. The bar appears on the left, the shelf at the bottom.
+2. Click a tool as before. **Drag** a button to move it; drag it **off the bar** to remove it.
+3. Click **+** at the bottom of the bar, type a command name (for example *Gaussian*), and drag the result onto the bar.
+4. Open an image: its preview appears in the shelf. **Right-click** it for placement, copy and save commands.
+5. Drop a `.ijm` macro on the shelf's right section: it becomes a button that runs on your images.
+
+## Three plugins that work together
+
+Each plugin works on its own; installed together, they share the screen and each other's commands.
+
+| Plugin | What it gives you |
+|---|---|
+| **Side Toolbar** (this one) | Fiji's toolbar as a vertical bar you can reshape freely, plus a shelf for open tools, live image previews and macro buttons |
+| [**Window Layouts**](https://github.com/AIHector/Fiji-Window-Layouts) | Ten numbered window layouts, snap zones and exact saving of any arrangement, with a keyboard shortcut for each |
+| [**Undo History**](https://github.com/AIHector/Fiji-Undo-History) | Multi-level undo and redo with a history panel: pixels, selections, overlays, display, calibration, ROI Manager and Results |
+
+- **Window Layouts** keeps every layout clear of Side Toolbar's bars and status strip, and re-arranges the windows when a bar changes size or place.
+- **Side Toolbar**'s image previews offer Window Layouts' placements (halves, thirds, quarters, other display, layouts 0 to 9) and Undo History's steps in their right-click menu.
+- **Side Toolbar** adds an *Undo History* button to the bar when Undo History is installed, and **Window Layouts** places the Undo History window like any other tool window.
+
+## The toolbar in detail
+
 
 - **All of ImageJ's tools, unchanged.** Click to select a tool, double-click for its options, right-click (or hold the mouse button) for its menu: rectangle types, line types, point/multi-point, zoom menu, colour picker menu, macro and plugin tools, menu tools (*Dev*, *Stk*, *LUT*) and the **»** menu that switches toolsets.
 - **Move a button:** drag it. The other buttons slide aside to show where it will land.
@@ -21,7 +78,7 @@ Fiji's toolbar is a fixed horizontal strip. **Side Toolbar** turns it into a ver
 
 Everything is saved as soon as you change it.
 
-# How it works with Fiji's window
+## How it works with Fiji's window
 
 ImageJ's own toolbar is hidden, not removed: it keeps running underneath, and the side toolbar drives it. This is why every tool behaves exactly as before, including tools that macros and plugins install later.
 
@@ -31,16 +88,16 @@ The bar never takes the keyboard focus, so clicking a tool leaves your image act
 
 **Window Layouts.** If the Window Layouts plugin is installed, its layouts fill the screen *beside* the bar and below (or above) the status strip. Changing the bar's side or width re-arranges the windows.
 
-# Installation
+## Installation
 
-Two files go into the Fiji folder (`/Applications/Fiji` on this Mac):
+**From a release.** Download `Side_Toolbar-<version>.zip` from the [Releases](../../releases) page, unzip it, and copy the two files into your Fiji folder (on macOS, `Fiji.app` or the folder that contains it):
 
 | File | Where |
 |---|---|
 | `Side_Toolbar.jar` | `plugins/` |
 | `Side_Toolbar_Startup.ijm` | `macros/AutoRun/` (shows the bar when Fiji starts) |
 
-With Fiji closed:
+**From the source** (macOS; the script uses the Java inside Fiji, so nothing else is needed), with Fiji closed:
 
 ```bash
 git clone https://github.com/AIHector/Fiji-Side-Toolbar.git
@@ -49,11 +106,13 @@ cd Fiji-Side-Toolbar
 ./build.sh   # compiles with Fiji's own Java, installs both files
 ```
 
+`build.sh` installs into `/Applications/Fiji` unless you give another Fiji folder (`./build.sh /path/to/Fiji`).
+
 Then start Fiji. To uninstall, delete the two files; ImageJ's toolbar comes back unchanged.
 
-# Using the bar
+## Using the bar
 
-## Tools
+### Tools
 
 | Action | Effect |
 |---|---|
@@ -67,11 +126,11 @@ A small red triangle marks a tool that has a menu, as on ImageJ's toolbar. The s
 
 When a toolset or plugin adds a tool to ImageJ's toolbar, it appears on the side toolbar just above **»**. When a toolset is switched off, its buttons are hidden but keep their place for the next time. A tool you removed yourself is not added back.
 
-## Command, macro and script buttons
+### Command, macro and script buttons
 
 A click runs the command, macro or script. Commands without options open their dialog, as from the menu; with options (for example `sigma=2 stack`) they run directly. The options are the text the Macro Recorder writes (*Plugins › Macros › Record...*).
 
-## Changing the bar
+### Changing the bar
 
 | To | Do |
 |---|---|
@@ -87,7 +146,7 @@ A click runs the command, macro or script. Commands without options open their d
 | Edit | Right-click › Edit Button... |
 | Copy a button | Right-click › Duplicate |
 
-## The Edit dialog
+### The Edit dialog
 
 | Field | Meaning |
 |---|---|
@@ -98,7 +157,7 @@ A click runs the command, macro or script. Commands without options open their d
 | Buttons (groups) | The group's buttons, with Up, Down, Edit, Add, Separator, Remove |
 | Icon | **Automatic**: tools show their own icon, other buttons a coloured badge with their initials. **Letters or emoji**: up to three characters. **ImageJ icon code**: the language of macro tool icons (see imagej.net/ij/developer/macro/macros.html#icons). **Image file**: PNG, GIF or JPEG. **Picture of an ImageJ tool**. **Gallery...** offers all of these ready-made. **Colour...** sets the colour of letters and badges |
 
-## Settings
+### Settings
 
 **•••** › *Side Toolbar Settings...* or *Plugins › Side Toolbar › Side Toolbar Settings...*
 
@@ -111,7 +170,7 @@ A click runs the command, macro or script. Commands without options open their d
 | ImageJ status bar | Top, Bottom, Classic ImageJ window (both toolbars) | Top |
 | Keep the toolbar above Fiji's windows | on/off. Only while Fiji is the active application; other applications can cover it | on |
 
-## Menu commands (Plugins › Side Toolbar)
+### Menu commands (Plugins › Side Toolbar)
 
 Start Side Toolbar · Add Buttons to Side Toolbar... · Side Toolbar Settings... · Undo Side Toolbar Change · Export Side Toolbar... · Import Side Toolbar... · Reset Side Toolbar... · Show Classic Toolbar · Side Toolbar Help
 
@@ -119,7 +178,7 @@ Start Side Toolbar · Add Buttons to Side Toolbar... · Side Toolbar Settings...
 - **Reset** restores ImageJ's tools in their usual order (undoable).
 - **Show Classic Toolbar** brings back ImageJ's own toolbar and window and switches the side toolbar off, also at the next start. *Start Side Toolbar* switches it on again with the same buttons.
 
-# The shelf: open tools, image previews, macro buttons
+## The shelf: open tools, image previews, macro buttons
 
 A second kind of bar, the **shelf**, sits at the bottom of the screen by default (56 px high), between the toolbar and the right edge. It has three sections:
 
@@ -146,13 +205,13 @@ A floating bar moves when you drag its empty area; **drag it onto a docked bar**
 
 The shelves are saved in `~/Library/Preferences/IJ_Side_Toolbar_Shelves.txt` after every change.
 
-# Going back to ImageJ's horizontal toolbar
+## Going back to ImageJ's horizontal toolbar
 
 - **To show it:** **•••** › *Show Classic Toolbar* (or *Plugins › Side Toolbar › Show Classic Toolbar*). The side toolbar and the shelf close, ImageJ's own window with its horizontal toolbar comes back, and it stays so at the next start.
 - **To hide it again:** *Plugins › Side Toolbar › Start Side Toolbar*. Your buttons and shelves come back as they were.
 - **Both at once:** *Side Toolbar Settings...* › *ImageJ status bar* › *Classic ImageJ window (with its own toolbar too)*.
 
-# Files
+## Files
 
 | Path | Content |
 |---|---|
@@ -174,7 +233,7 @@ spring
 more
 ```
 
-# For developers
+## For developers
 
 Other plugins can keep clear of the bar: it publishes its rectangle (screen coordinates) as the system property `sidetoolbar.reserved`, a `java.awt.Rectangle`, removed when the bar is off. Window Layouts uses it.
 
@@ -192,7 +251,7 @@ Other plugins can keep clear of the bar: it publishes its rectangle (screen coor
 
 Requires Fiji with ImageJ 1.54 or later; compiled for Java 8.
 
-# Test record
+## Test record
 
 Tested on 21 October 2026 with Fiji 2.18 / ImageJ 1.54p / Java 21 on macOS (1512 × 982 display): first in a separate copy of Fiji with its own preferences, then in the installed Fiji with real mouse and keyboard events (macOS Quartz events, the same a physical mouse produces).
 
@@ -234,6 +293,6 @@ Tested on 21 October 2026 with Fiji 2.18 / ImageJ 1.54p / Java 21 on macOS (1512
 - Two displays, the Dock on the left or right side of the screen, GUI scales other than 1.
 - Plugin tools with their own right-click menu (*Tool menu...*).
 
-# License
+## License
 
 MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
