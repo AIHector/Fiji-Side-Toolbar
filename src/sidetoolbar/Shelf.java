@@ -169,6 +169,19 @@ final class Shelf {
 		showAll();
 	}
 
+	/**
+	 * Where a macro button made by another plugin goes (Undo History's Create Macro): the macro section of a
+	 * horizontal bar that is showing, the bottom one first, then the top one, then a floating one. Null if none.
+	 */
+	static Section macroTarget(List<Shelf> shelves, java.util.function.Predicate<Shelf> showing) {
+		for (String place : new String[] {"bottom", "top", "float"})
+			for (Shelf s : shelves)
+				if (s.place.equals(place) && showing.test(s))
+					for (Section c : s.sections)
+						if (c.kind.equals(MACROS) && !c.hidden) return c;
+		return null;
+	}
+
 	/** The shelf docked at a place, or null. */
 	static Shelf at(String place) {
 		for (Shelf s : all) if (s.place.equals(place)) return s;

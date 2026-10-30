@@ -64,6 +64,7 @@ All three are written in Java 8 for any system Fiji runs on, and their shortcuts
 - **Window Layouts** keeps every layout clear of Side Toolbar's bars and status strip, and re-arranges the windows when a bar changes size or place.
 - **Side Toolbar**'s image previews offer Window Layouts' placements (halves, thirds, quarters, other display, layouts 0 to 9) and Undo History's steps in their right-click menu.
 - **Side Toolbar** adds an *Undo History* button to the bar when Undo History is installed, and **Window Layouts** places the Undo History window like any other tool window.
+- **Undo History**'s *Macro* button turns steps into a macro file, and Side Toolbar adds a button for it to the macro section of the bar.
 
 ## The toolbar in detail
 
@@ -195,7 +196,7 @@ A second kind of bar, the **shelf**, sits at the bottom of the screen by default
 | **Images** (centre) | a live preview of each open image (redrawn at most twice a second); the active image is outlined in blue. Many images scroll with the mouse wheel | bring the image to the front | **Name in the Shelf** (a name shown only by the shelf, for this session; the image keeps its title), Duplicate, Copy to Clipboard (to paste in other apps), Copy (ImageJ), **Place on Screen** (halves, quarters, thirds, centre, whole screen, back to where it was), **Move to Display** (next, previous), **Apply Layout** (0 to 9), **Zoom**, **Image** (rename, properties, info), **Undo History**, Save, **Save As** (TIFF, PNG, JPEG, GIF, BMP, TIFF in ZIP, OME-TIFF through Bio-Formats, AVI for stacks, PDF with one page per plane), Close |
 | **Macros** (right) | one button per macro file (.ijm), with a name, initials or icon you choose; **+** adds one | runs the macro: on the image if one is open; with several, a dialog asks which (the active one is ticked; *All open images* ticks them all) | run, run on chosen images, edit the macro, rename / initials / icon, move, remove (the file stays) |
 
-**Adding macros:** **+** › *Add Macro File (.ijm)...*, or *New Macro...* (creates the file in Fiji's `macros/Side Toolbar` folder and opens it in the editor), or drop .ijm files on the shelf. Images dropped on the shelf open in Fiji.
+**Adding macros:** **+** › *Add Macro File (.ijm)...*, or *New Macro...* (creates the file in Fiji's `macros/Side Toolbar` folder and opens it in the editor), or drop .ijm files on the shelf. Images dropped on the shelf open in Fiji. A macro made with Undo History's *Macro* button gets its button here too: on the bottom bar's macro section, else the top bar's, else a floating bar's.
 
 **Every image in a folder (optional).** Off by default, to spare memory. When switched on in the settings, the image dialog offers it: each image of the folder is opened without being shown, processed, saved as TIFF in a folder you choose, and closed before the next, so only one is in memory at a time.
 

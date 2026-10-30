@@ -145,6 +145,13 @@ public class StoreTests {
 		eq("Mine", r.label, "macro name kept");
 		eq("Undo History", back.get(0).sections.get(0).items.get(5).args, "pinned tool remembers its window title");
 		check(back.get(1).shown().isEmpty(), "shown() leaves hidden sections out");
+		// a macro button from another plugin (Undo History) goes to the bottom bar's macros, then top, then floating
+		eq(d.get(0).sections.get(2), Shelf.macroTarget(Shelf.all, x -> true), "macro button: the bottom bar's macros");
+		check(Shelf.macroTarget(Shelf.all, x -> !x.place.equals("bottom")) == null,
+				"macro button: none when only a bar with a hidden macro section shows");
+		m.hidden = false;
+		eq(m, Shelf.macroTarget(Shelf.all, x -> !x.place.equals("bottom")), "macro button: a floating bar's macros");
+		check(Shelf.macroTarget(Shelf.all, x -> false) == null, "macro button: none when no bar shows");
 		Shelf.all.clear();
 		Shelf.all.addAll(back);
 		eq(text, Shelf.serialize(), "writing again gives the same text");
