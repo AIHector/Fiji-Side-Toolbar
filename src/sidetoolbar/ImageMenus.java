@@ -78,7 +78,10 @@ final class ImageMenus {
 		if (layouts) {
 			// what the image does when its window is resized by dragging an edge (Window Layouts)
 			zoom.addSeparator();
-			javax.swing.JLabel head = new javax.swing.JLabel("  When the window is resized:");
+			JMenuItem ff = Bridge.item("Switch Fill / Fit", () -> { ShelfView.bringToFront(imp); IJ.runPlugIn("fijilayouts.WindowLayouts_", "fillfit"); });
+			showShortcut(ff, "fill-fit");
+			zoom.add(ff);
+			javax.swing.JLabel head = new javax.swing.JLabel("  Images in their windows:");
 			head.setFont(head.getFont().deriveFont(Font.PLAIN, 11f));
 			zoom.add(head);
 			String now = Prefs.get("fijilayouts.follow", "keep");
@@ -163,7 +166,8 @@ final class ImageMenus {
 		{"center-two-thirds", java.awt.event.KeyEvent.VK_R}, {"right-two-thirds", java.awt.event.KeyEvent.VK_T},
 		{"center", java.awt.event.KeyEvent.VK_C}, {"maximize", java.awt.event.KeyEvent.VK_ENTER},
 		{"restore", java.awt.event.KeyEvent.VK_BACK_SPACE},
-		{"next-display", java.awt.event.KeyEvent.VK_N}, {"previous-display", java.awt.event.KeyEvent.VK_P}};
+		{"next-display", java.awt.event.KeyEvent.VK_N}, {"previous-display", java.awt.event.KeyEvent.VK_P},
+		{"fill-fit", java.awt.event.KeyEvent.VK_X}};
 
 	/**
 	 * Shows the Window Layouts shortcut beside a menu entry. Only shown: Window Layouts itself handles the keys
