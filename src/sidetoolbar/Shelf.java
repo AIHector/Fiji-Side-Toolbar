@@ -68,7 +68,7 @@ final class Shelf {
 		w.items.add(launcher("Channels Tool...", "Channels", "Ch", "#8a3fb0"));
 		w.items.add(launcher("results", "Results", "Res", "#2e8b57"));
 		w.items.add(launcher("log", "Log", "Log", "#7a6a3a"));
-		w.items.add(launcher("Undo History Window", "Undo History", "↶", "#2d6ec8"));
+		w.items.add(launcher("Undo History Window", "Undo History", "Undo", "#2d6ec8"));
 		s.sections.add(w);
 		s.sections.add(new Section(IMAGES));
 		s.sections.add(new Section(MACROS));

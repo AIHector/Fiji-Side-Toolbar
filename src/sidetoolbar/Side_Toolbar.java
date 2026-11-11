@@ -100,7 +100,7 @@ public class Side_Toolbar implements PlugIn {
 		if (Menus.getCommands() == null || Menus.getCommands().get("Undo History Window") == null) return;
 		Item it = new Item(Item.Kind.COMMAND, "Undo History Window");
 		it.label = "Undo History";
-		it.icon = "text:\u21b6";
+		it.icon = "text:Undo";
 		it.color = "#2d6ec8";
 		int at = Store.items.size();
 		for (int i = 0; i < Store.items.size(); i++) if (Store.items.get(i).kind == Item.Kind.MORE) { at = i; break; }

@@ -86,7 +86,7 @@ final class ImageMenus {
 			zoom.add(head);
 			String now = Prefs.get("fijilayouts.follow", "keep");
 			javax.swing.ButtonGroup g = new javax.swing.ButtonGroup();
-			String[][] modes = {{"keep", "Keep the Zoom"}, {"fill", "Fill the Window"}, {"fit", "Fit the Whole Image (Scale to Fit)"},
+			String[][] modes = {{"keep", "Keep the Zoom"}, {"fill", "Fill the Window"}, {"fit", "Fit the Whole Image"},
 				{"shrink", "Fit and Shrink the Window"}};
 			for (final String[] md : modes) {
 				javax.swing.JRadioButtonMenuItem it = new javax.swing.JRadioButtonMenuItem(md[1], md[0].equals(now));
