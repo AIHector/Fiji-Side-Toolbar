@@ -27,13 +27,75 @@ final class Chrome {
 	private static boolean applying;
 	private static ComponentAdapter watcher;
 	private static Rectangle lastUsable;
+	/** The bounds of the display everything was last placed on, and where the toolbar was put. */
+	private static Rectangle lastScreen, lastDock;
 
 	private Chrome() { }
 
+	/**
+	 * The display the ImageJ window is on, found from where the window actually is. Java's own answer
+	 * (getGraphicsConfiguration) lags after a move and can stay wrong after displays sleep, wake or reconnect.
+	 */
 	static GraphicsConfiguration screen() {
 		ImageJ ij = IJ.getInstance();
-		if (ij != null && ij.getGraphicsConfiguration() != null) return ij.getGraphicsConfiguration();
+		if (ij != null) return screenAt(ij.getBounds());
 		return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+	}
+
+	/**
+	 * Where a moved strip belongs: the display under the pointer while the pointer is on the strip (the user let go
+	 * of a drag by its title bar; the strip is wide, so its centre may still be on the old display), otherwise the
+	 * display under the strip's centre (moved by a window-manager gesture or shortcut, or by macOS).
+	 */
+	static GraphicsConfiguration targetScreen(ImageJ ij) {
+		Rectangle b = ij.getBounds();
+		try {
+			java.awt.PointerInfo pi = java.awt.MouseInfo.getPointerInfo();
+			if (pi != null && b.contains(pi.getLocation())) return screenAt(new Rectangle(pi.getLocation().x, pi.getLocation().y, 1, 1));
+		} catch (Exception ignored) { } // no pointer (headless) or not allowed
+		return screenAt(b);
+	}
+
+	/** The display under the centre of a rectangle, else the one it overlaps most, else the main display. */
+	static GraphicsConfiguration screenAt(Rectangle r) {
+		GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+		java.awt.Point c = new java.awt.Point(r.x + r.width / 2, r.y + r.height / 2);
+		GraphicsConfiguration best = null;
+		long bestArea = 0;
+		for (java.awt.GraphicsDevice d : ge.getScreenDevices()) {
+			GraphicsConfiguration gc = d.getDefaultConfiguration();
+			Rectangle b = gc.getBounds();
+			if (b.contains(c)) return gc;
+			Rectangle i = b.intersection(r);
+			long area = i.isEmpty() ? 0 : (long) i.width * i.height;
+			if (area > bestArea) { bestArea = area; best = gc; }
+		}
+		return best != null ? best : ge.getDefaultScreenDevice().getDefaultConfiguration();
+	}
+
+	/** The largest display wider than tall (else the largest display), by its size in points. */
+	static GraphicsConfiguration largestLandscape() {
+		GraphicsConfiguration best = null, bestAny = null;
+		long area = 0, areaAny = 0;
+		for (java.awt.GraphicsDevice d : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+			GraphicsConfiguration gc = d.getDefaultConfiguration();
+			Rectangle b = gc.getBounds();
+			long a = (long) b.width * b.height;
+			if (a > areaAny) { areaAny = a; bestAny = gc; }
+			if (b.width >= b.height && a > area) { area = a; best = gc; }
+		}
+		return best != null ? best : bestAny;
+	}
+
+	/** At startup, with "Start on: the largest landscape display", moves the ImageJ window to that display. */
+	static void moveToStartDisplay(ImageJ ij) {
+		if (ij == null || !Store.startDisplay().equals("largest")) return;
+		GraphicsConfiguration gc = largestLandscape();
+		if (gc == null || gc.getBounds().equals(screen().getBounds())) return;
+		Rectangle u = usable(gc);
+		applying = true;
+		try { ij.setLocation(u.x, u.y); }
+		finally { applying = false; }
 	}
 
 	static Rectangle usable(GraphicsConfiguration gc) {
@@ -57,8 +119,10 @@ final class Chrome {
 			// ImageJ draws a button straight onto its toolbar when the tool changes, even while hidden:
 			// with no size, those drawings land nowhere instead of on the status strip
 			if (tb != null && !classic) tb.setBounds(0, 0, 0, 0);
-			Rectangle u = usable(screen());
+			GraphicsConfiguration gc = screen();
+			Rectangle u = usable(gc);
 			lastUsable = u;
+			lastScreen = gc.getBounds();
 			d.chooseColumns(u.height);
 			int w = d.preferredWidth();
 			boolean dockRight = Store.side().equals("right");
@@ -67,6 +131,7 @@ final class Chrome {
 			if (dockRight) { right -= w; db = new Rectangle(right, u.y, w, u.height); }
 			else { db = new Rectangle(left, u.y, w, u.height); left += w; }
 			d.window.setBounds(db);
+			lastDock = d.window.getBounds();
 			if (!d.window.isVisible()) d.window.setVisible(true);
 			java.util.List<Rectangle> reserved = new java.util.ArrayList<Rectangle>();
 			reserved.add(new Rectangle(db));
@@ -81,7 +146,7 @@ final class Chrome {
 				reserved.add(r);
 			}
 			ij.pack();
-			int stripH = classic ? 0 : ij.getHeight();
+			int stripH = classic ? 0 : stripHeight(ij);
 			boolean stripTop = !Store.status().equals("bottom");
 			if (!classic && stripTop) { stripRect(ij, new Rectangle(left, top, right - left, stripH), true); top += stripH; }
 			for (Shelf s : Shelf.all) {
@@ -129,11 +194,20 @@ final class Chrome {
 		placeStrip(ij);
 	}
 
-	/** The ImageJ window as a strip, keeping the height ImageJ gives it (it grows to show search results). */
+	/**
+	 * The ImageJ window as a strip, keeping the height ImageJ gives it (it grows to show search results), but never
+	 * taller than ImageJ's own layout needs: macOS tiling or a window manager may enlarge it while moving it.
+	 */
 	static void placeStrip(ImageJ ij) {
-		int h = ij.getHeight();
+		int h = stripHeight(ij);
 		Rectangle want = new Rectangle(stripLeft, stripAtTop ? stripTopY : stripBottomY - h, stripWidth, h);
 		if (!want.equals(ij.getBounds())) ij.setBounds(want);
+	}
+
+	/** The strip's height: the window's height, capped at the height ImageJ's layout asks for. */
+	static int stripHeight(ImageJ ij) {
+		int h = ij.getHeight(), pref = ij.getPreferredSize().height;
+		return pref > 0 ? Math.min(h, pref) : h;
 	}
 
 	/** Keeps the strip in place when ImageJ or Fiji re-packs its window (search results, a new tool...). */
@@ -141,28 +215,57 @@ final class Chrome {
 		if (watcher != null) return;
 		watcher = new ComponentAdapter() {
 			public void componentResized(ComponentEvent e) { refit(); }
-			public void componentMoved(ComponentEvent e) { refit(); }
+			// a move may be a drag in progress: decide once the strip has stopped moving
+			public void componentMoved(ComponentEvent e) {
+				if (applying || Dock.instance == null || Store.status().equals("classic")) return;
+				moveSettle.restart();
+			}
 
 			private void refit() {
 				if (applying || Dock.instance == null || Store.status().equals("classic")) return;
-				SwingUtilities.invokeLater(() -> {
-					Dock d = Dock.instance;
-					if (applying || d == null) return;
-					applying = true;
-					try { placeStrip(ij); }
-					finally { applying = false; }
-				});
+				SwingUtilities.invokeLater(() -> settle(ij));
 			}
 		};
+		moveSettle = new javax.swing.Timer(MOVE_SETTLE_MS, e -> settle(ij));
+		moveSettle.setRepeats(false);
 		ij.addComponentListener(watcher);
 	}
 
-	/** Called periodically: re-places everything when the screen's usable area changed (display, Dock, menu bar). */
-	static void checkScreen() {
-		if (applying || Dock.instance == null) return;
-		Rectangle u = usable(screen());
-		if (!u.equals(lastUsable)) apply();
+	/** How long the strip must stay still after a move before it is put back or the toolbar follows it. */
+	static final int MOVE_SETTLE_MS = 450;
+	private static javax.swing.Timer moveSettle;
+
+	/**
+	 * Dragged, or moved by a window-manager gesture or shortcut, or by macOS after displays reconnect, to another
+	 * display: the toolbar, the strip and the shelves all go to that display. Otherwise the strip goes back in place.
+	 */
+	private static void settle(ImageJ ij) {
+		if (applying || Dock.instance == null || Store.status().equals("classic")) return;
+		if (lastScreen != null && !targetScreen(ij).getBounds().equals(lastScreen)) {
+			apply();
+			Side_Toolbar.rearrangeWindows();
+			return;
+		}
+		applying = true;
+		try { placeStrip(ij); }
+		finally { applying = false; }
 	}
+
+	/**
+	 * Called periodically: re-places everything when the screen's usable area changed (display, Dock, menu bar),
+	 * or when something else moved the toolbar (macOS moves windows when displays sleep, wake or reconnect).
+	 */
+	static void checkScreen() {
+		Dock d = Dock.instance;
+		if (applying || d == null || (moveSettle != null && moveSettle.isRunning())) return; // a drag in progress
+		Rectangle u = usable(screen());
+		boolean dockMoved = lastDock != null && d.window.isVisible() && !d.window.getBounds().equals(lastDock);
+		if (!dockMoved) dockFixes = 0;
+		// a few attempts only, in case the system keeps the toolbar from its exact place
+		if (!u.equals(lastUsable) || (dockMoved && dockFixes++ < 3)) apply();
+	}
+
+	private static int dockFixes;
 
 	/** Changing a window's decorations requires releasing its native window; it is shown again at once. */
 	static void setUndecorated(ImageJ ij, boolean undecorated) {

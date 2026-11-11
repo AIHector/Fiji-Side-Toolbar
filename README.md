@@ -39,6 +39,7 @@ ImageJ's own toolbar keeps running, hidden, underneath: every tool behaves exact
 | **Image previews that act** | right-click a preview to place it on the screen, duplicate, copy, zoom, save as TIFF, PNG, JPEG, PDF and more |
 | **Macros on chosen images** | a macro button runs on the front image, on the images you tick, or (optionally) on every image of a folder |
 | **Fits your screen** | one, two or three columns; shelf bars at the bottom, the top, beside the toolbar, at the right edge or floating; drag a bar's edge to resize it |
+| **Moves between displays** | drag the status strip to another display (or move it there with a window manager's shortcut or gesture) and the toolbar, the strip and the shelves all go with it; Fiji can open on the largest landscape display |
 | **Easy to leave** | one command brings ImageJ's horizontal toolbar back; deleting two files uninstalls it |
 
 ## Quick start
@@ -87,7 +88,9 @@ ImageJ's own toolbar is hidden, not removed: it keeps running underneath, and th
 
 Without its toolbar, the ImageJ window keeps only its status line, progress bar and Fiji's search bar. Side Toolbar turns it into a **status strip** across the top of the screen (or the bottom), beside the bar. The strip keeps its title bar: on macOS a window without one cannot receive typing, so Fiji's search bar and Cmd+Q would stop working. When you type in Fiji's search bar, the results open below it, as before.
 
-The strip keeps the height the ImageJ window has, so on Windows and Linux, where Fiji's menus are inside that window, the menus stay in the strip.
+The strip keeps the height the ImageJ window has, so on Windows and Linux, where Fiji's menus are inside that window, the menus stay in the strip. It is never made taller than ImageJ's layout needs, even if macOS tiling or a window manager enlarges it while moving it.
+
+**Other displays.** Move the strip within its display and it goes back in place. Move it to another display and everything follows: the toolbar, the strip and the shelves are placed on that display, and Window Layouts re-arranges the windows there. A drag counts for the display under the pointer when you let go; a move by a window manager (for example a BetterTouchTool or Magnet shortcut or gesture acting on the focused window: click the strip first) counts for the display under the strip's centre. Each display is found from where the windows are, not from Java's own record, which can stay wrong after displays sleep, wake or reconnect; if macOS moves the toolbar when displays reconnect, it is put back in place.
 
 The bar never takes the keyboard focus, so clicking a tool leaves your image active and Fiji's menu bar unchanged.
 
@@ -176,6 +179,7 @@ A click runs the command, macro or script. Commands without options open their d
 | Show button names beside the icons | on/off | off |
 | ImageJ status bar | Top, Bottom, Classic ImageJ window (both toolbars) | Top |
 | Keep the toolbar above Fiji's windows | on/off. Only while Fiji is the active application; other applications can cover it | on |
+| Start on | The display Fiji was on when it quit; The largest landscape display (with only a laptop screen, that screen) | The display Fiji was on when it quit |
 
 ### Menu commands (Plugins › Side Toolbar)
 
@@ -192,7 +196,7 @@ A second kind of bar, the **shelf**, sits at the bottom of the screen by default
 | Section | Shows | Click | Right-click |
 |---|---|---|---|
 | **Tools** (left) | the tools you pinned (ROI Manager, B&C, Channels, Results, Log, Undo History by default), then any other open tool window. A dot under a tool means its window is open; a faded tool is closed | open tool: bring it to the front; closed tool: open it | bring to front, close the window, keep it in the shelf (pin), rename / initials / icon (an open tool that is not pinned is pinned when renamed, so that its name is kept), move earlier or later, remove |
-| **Images** (centre) | a live preview of each open image (redrawn at most twice a second); the active image is outlined in blue. Many images scroll with the mouse wheel | bring the image to the front | **Name in the Shelf** (a name shown only by the shelf, for this session; the image keeps its title), Duplicate, Copy to Clipboard (to paste in other apps), Copy (ImageJ), **Place on Screen** (halves, quarters, thirds, centre, whole screen, back to where it was), **Move to Display** (next, previous), **Apply Layout** (0 to 9), **Zoom**, **Image** (rename, properties, info), **Undo History**, Save, **Save As** (TIFF, PNG, JPEG, GIF, BMP, TIFF in ZIP, OME-TIFF through Bio-Formats, AVI for stacks, PDF with one page per plane), Close |
+| **Images** (centre) | a live preview of each open image (redrawn at most twice a second); the active image is outlined in blue. Many images scroll with the mouse wheel | bring the image to the front | **Name in the Shelf** (a name shown only by the shelf, for this session; the image keeps its title), Duplicate, Copy to Clipboard (to paste in other apps), Copy (ImageJ), **Place on Screen** (halves, quarters, thirds, two-thirds, centre, whole screen, back to where it was; each entry shows its Window Layouts shortcut), **Move to Display** (next, previous), **Apply Layout** (0 to 9), **Zoom** (in, out, 100%, original scale, to selection; and what the image does in its window when it is placed or resized: keep the zoom, fill the window, fit the whole image, or fit and shrink the window), **Image** (rename, properties, info), **Undo History**, Save, **Save As** (TIFF, PNG, JPEG, GIF, BMP, TIFF in ZIP, OME-TIFF through Bio-Formats, AVI for stacks, PDF with one page per plane), Close |
 | **Macros** (right) | one button per macro file (.ijm), with a name, initials or icon you choose; **+** adds one | runs the macro: on the image if one is open; with several, a dialog asks which (the active one is ticked; *All open images* ticks them all) | run, run on chosen images, edit the macro, rename / initials / icon, move, remove (the file stays) |
 
 **Adding macros:** **+** › *Add Macro File (.ijm)...*, or *New Macro...* (creates the file in Fiji's `macros/Side Toolbar` folder and opens it in the editor), or drop .ijm files on the shelf. Images dropped on the shelf open in Fiji.
@@ -301,6 +305,14 @@ Tested on 21 October 2026 with Fiji 2.18 / ImageJ 1.54p / Java 21 on macOS (1512
 - The blue outline while an image is dragged over the bar was not seen in the test captures (the image opened correctly on drop).
 - Two displays, the Dock on the left or right side of the screen, GUI scales other than 1.
 - Plugin tools with their own right-click menu (*Tool menu...*).
+
+**Three displays (11 November 2026, version 0.2.2)**
+
+On macOS with three displays (a laptop screen, a 2560 × 1440 monitor above it, a portrait monitor on the left):
+
+- With *Start on: the largest landscape display*, Fiji opened on the 2560 × 1440 monitor although it had quit on the laptop screen; the toolbar (40 × 1409), the strip (2520 × 55) and the bottom shelf were in place.
+- The strip, moved through macOS accessibility (as window managers move windows) and dragged step by step, carried the toolbar, the strip and the shelf to each of the three displays; moved within a display, it went back in place; enlarged to fill a display while moving, it kept its 55-point height.
+- In the installed Fiji, BetterTouchTool's "move to next display" gesture on the strip and a real drag of the strip moved everything to the other display.
 
 ## License
 

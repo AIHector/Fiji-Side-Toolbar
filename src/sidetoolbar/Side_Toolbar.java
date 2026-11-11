@@ -84,6 +84,7 @@ public class Side_Toolbar implements PlugIn {
 			Prefs.set("sidetoolbar.enabled", true);
 			Store.persistPrefs();
 		}
+		Chrome.moveToStartDisplay(IJ.getInstance());
 		new Dock(IJ.getInstance());
 		Shelf.load();
 		if (Shelf.enabled()) for (Shelf s : Shelf.all) if (s.view == null) s.view = new ShelfView(s);
@@ -138,6 +139,8 @@ public class Side_Toolbar implements PlugIn {
 		gd.addCheckbox("Show button names beside the icons", Store.labels());
 		gd.addChoice("ImageJ status bar:", status, status[st]);
 		gd.addCheckbox("Keep the toolbar above Fiji's windows", Store.onTop());
+		String[] starts = {"The display Fiji was on when it quit", "The largest landscape display"};
+		gd.addChoice("Start on:", starts, starts[Store.startDisplay().equals("largest") ? 1 : 0]);
 		gd.addMessage("Shelf (open tools, image previews, macro buttons):");
 		gd.addCheckbox("Show the shelf", Shelf.enabled());
 		gd.addNumericField("Shelf size:", Shelf.size(), 0, 4, "px (height of a bar, width of a column; 36 to 120)");
@@ -152,6 +155,7 @@ public class Side_Toolbar implements PlugIn {
 		Prefs.set("sidetoolbar.labels", gd.getNextBoolean());
 		Prefs.set("sidetoolbar.status", statusKeys[gd.getNextChoiceIndex()]);
 		Prefs.set("sidetoolbar.ontop", gd.getNextBoolean());
+		Prefs.set("sidetoolbar.startdisplay", gd.getNextChoiceIndex() == 1 ? "largest" : "last");
 		Prefs.set("sidetoolbar.shelves", gd.getNextBoolean());
 		Prefs.set("sidetoolbar.shelfsize", Math.max(36, Math.min(120, (int) gd.getNextNumber())));
 		Prefs.set("sidetoolbar.foldermacros", gd.getNextBoolean());

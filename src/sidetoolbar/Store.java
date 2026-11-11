@@ -42,6 +42,8 @@ final class Store {
 	static boolean labels() { return Prefs.get("sidetoolbar.labels", false); }
 	static String status() { return Prefs.get("sidetoolbar.status", "top"); }           // top, bottom, classic
 	static boolean onTop() { return Prefs.get("sidetoolbar.ontop", true); }
+	/** Where Fiji opens: "last" (the display it was on when it quit) or "largest" (the largest landscape display). */
+	static String startDisplay() { return Prefs.get("sidetoolbar.startdisplay", "last").equals("largest") ? "largest" : "last"; }
 
 	static void persistPrefs() {
 		try { Prefs.savePreferences(); } catch (Throwable ignored) { }

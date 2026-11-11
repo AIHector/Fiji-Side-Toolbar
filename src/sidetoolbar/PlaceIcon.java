@@ -94,6 +94,7 @@ final class PlaceIcon implements Icon {
 			case "center-third": return new PlaceIcon(t, 0, t, 1, null);
 			case "right-third": return new PlaceIcon(2 * t, 0, t, 1, null);
 			case "left-two-thirds": return new PlaceIcon(0, 0, 2 * t, 1, null);
+			case "center-two-thirds": return new PlaceIcon(t / 2, 0, 2 * t, 1, null);
 			case "right-two-thirds": return new PlaceIcon(t, 0, 2 * t, 1, null);
 			case "center": return new PlaceIcon(0.25, 0.2, 0.5, 0.6, null);
 			case "maximize": return new PlaceIcon(0, 0, 1, 1, null);

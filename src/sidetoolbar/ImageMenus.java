@@ -37,12 +37,14 @@ final class ImageMenus {
 		String[][] zones = {{"left-half", "Left Half"}, {"right-half", "Right Half"}, {"top-half", "Top Half"}, {"bottom-half", "Bottom Half"},
 			{null, null}, {"top-left", "Top-Left Quarter"}, {"top-right", "Top-Right Quarter"}, {"bottom-left", "Bottom-Left Quarter"},
 			{"bottom-right", "Bottom-Right Quarter"}, {null, null}, {"left-third", "Left Third"}, {"center-third", "Centre Third"},
-			{"right-third", "Right Third"}, {"left-two-thirds", "Left Two Thirds"}, {"right-two-thirds", "Right Two Thirds"},
+			{"right-third", "Right Third"}, {"left-two-thirds", "Left Two Thirds"}, {"center-two-thirds", "Centre Two Thirds"},
+			{"right-two-thirds", "Right Two Thirds"},
 			{null, null}, {"center", "Centre"}, {"maximize", "Whole Screen"}, {"restore", "Back to Where It Was"}};
 		for (final String[] z : zones) {
 			if (z[0] == null) { place.addSeparator(); continue; }
 			JMenuItem it = Bridge.item(z[1], () -> snap(imp, z[0]));
 			it.setIcon(PlaceIcon.zone(z[0]));
+			showShortcut(it, z[0]);
 			place.add(it);
 		}
 		place.setEnabled(layouts);
@@ -50,9 +52,11 @@ final class ImageMenus {
 		JMenu display = new JMenu("Move to Display");
 		JMenuItem nd = Bridge.item("Next Display", () -> snap(imp, "next-display"));
 		nd.setIcon(PlaceIcon.zone("next-display"));
+		showShortcut(nd, "next-display");
 		display.add(nd);
 		JMenuItem pd = Bridge.item("Previous Display", () -> snap(imp, "previous-display"));
 		pd.setIcon(PlaceIcon.zone("previous-display"));
+		showShortcut(pd, "previous-display");
 		display.add(pd);
 		display.setEnabled(layouts && java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices().length > 1);
 		m.add(display);
@@ -71,6 +75,23 @@ final class ImageMenus {
 		zoom.add(Bridge.item("100%", () -> onImage(imp, "View 100%")));
 		zoom.add(Bridge.item("Original Scale", () -> onImage(imp, "Original Scale")));
 		zoom.add(Bridge.item("To Selection", () -> onImage(imp, "To Selection")));
+		if (layouts) {
+			// what the image does when its window is resized by dragging an edge (Window Layouts)
+			zoom.addSeparator();
+			javax.swing.JLabel head = new javax.swing.JLabel("  When the window is resized:");
+			head.setFont(head.getFont().deriveFont(Font.PLAIN, 11f));
+			zoom.add(head);
+			String now = Prefs.get("fijilayouts.follow", "keep");
+			javax.swing.ButtonGroup g = new javax.swing.ButtonGroup();
+			String[][] modes = {{"keep", "Keep the Zoom"}, {"fill", "Fill the Window"}, {"fit", "Fit the Whole Image (Scale to Fit)"},
+				{"shrink", "Fit and Shrink the Window"}};
+			for (final String[] md : modes) {
+				javax.swing.JRadioButtonMenuItem it = new javax.swing.JRadioButtonMenuItem(md[1], md[0].equals(now));
+				it.addActionListener(e -> IJ.runPlugIn("fijilayouts.WindowLayouts_", "follow:" + md[0]));
+				g.add(it);
+				zoom.add(it);
+			}
+		}
 		m.add(zoom);
 
 		JMenu image = new JMenu("Image");
@@ -129,5 +150,35 @@ final class ImageMenus {
 		}
 		WindowManager.setTempCurrentImage(null);
 		IJ.wait(50);
+	}
+
+	/** The Window Layouts key for each place (with its modifier, Cmd+Alt by default on macOS). */
+	private static final Object[][] PLACE_KEYS = {
+		{"left-half", java.awt.event.KeyEvent.VK_LEFT}, {"right-half", java.awt.event.KeyEvent.VK_RIGHT},
+		{"top-half", java.awt.event.KeyEvent.VK_UP}, {"bottom-half", java.awt.event.KeyEvent.VK_DOWN},
+		{"top-left", java.awt.event.KeyEvent.VK_U}, {"top-right", java.awt.event.KeyEvent.VK_I},
+		{"bottom-left", java.awt.event.KeyEvent.VK_J}, {"bottom-right", java.awt.event.KeyEvent.VK_K},
+		{"left-third", java.awt.event.KeyEvent.VK_S}, {"center-third", java.awt.event.KeyEvent.VK_F},
+		{"right-third", java.awt.event.KeyEvent.VK_G}, {"left-two-thirds", java.awt.event.KeyEvent.VK_E},
+		{"center-two-thirds", java.awt.event.KeyEvent.VK_R}, {"right-two-thirds", java.awt.event.KeyEvent.VK_T},
+		{"center", java.awt.event.KeyEvent.VK_C}, {"maximize", java.awt.event.KeyEvent.VK_ENTER},
+		{"restore", java.awt.event.KeyEvent.VK_BACK_SPACE},
+		{"next-display", java.awt.event.KeyEvent.VK_N}, {"previous-display", java.awt.event.KeyEvent.VK_P}};
+
+	/**
+	 * Shows the Window Layouts shortcut beside a menu entry. Only shown: Window Layouts itself handles the keys
+	 * (a popup menu's accelerators are not active while it is closed).
+	 */
+	static void showShortcut(JMenuItem it, String zone) {
+		String mod = Prefs.get("fijilayouts.mod", ij.IJ.isMacOSX() ? "cmd+alt" : "ctrl+alt");
+		int m;
+		switch (mod) {
+			case "ctrl+alt": m = java.awt.event.InputEvent.CTRL_DOWN_MASK | java.awt.event.InputEvent.ALT_DOWN_MASK; break;
+			case "ctrl+shift": m = java.awt.event.InputEvent.CTRL_DOWN_MASK | java.awt.event.InputEvent.SHIFT_DOWN_MASK; break;
+			case "alt+shift": m = java.awt.event.InputEvent.ALT_DOWN_MASK | java.awt.event.InputEvent.SHIFT_DOWN_MASK; break;
+			default: m = java.awt.event.InputEvent.META_DOWN_MASK | java.awt.event.InputEvent.ALT_DOWN_MASK;
+		}
+		for (Object[] k : PLACE_KEYS)
+			if (k[0].equals(zone)) { it.setAccelerator(javax.swing.KeyStroke.getKeyStroke((Integer) k[1], m)); return; }
 	}
 }
