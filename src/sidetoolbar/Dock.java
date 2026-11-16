@@ -401,8 +401,8 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 		if (plusR.contains(e.getPoint()) || menuR.contains(e.getPoint())) { pressedFooter = true; repaint(); return; }
 		pressed = itemAt(e.getPoint());
 		if (pressed == null) return;
-		// tools are selected on press, as in ImageJ; menus and commands act on release, so a drag can move them
-		if (pressed.isTool() && !actsOnClick(pressed)) Bridge.press(pressed, retarget(e, pressed));
+		// Buttons act on release, so a drag can move them without activating their action.
+		// Select on release so a rearrangement does not activate a different drawing tool.
 		if (Bridge.hasSubtypes(pressed)) longPress.restart();
 		repaint();
 	}
@@ -490,7 +490,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 	private void click(Item it, MouseEvent e) {
 		switch (it.kind) {
 			case TOOL:
-				break; // handled on press
+				pressTool(it,e);break;
 			case SLOT: {
 				int slot = Bridge.slotIndex(it.target);
 				if (Bridge.isMenuTool(slot)) {
@@ -499,6 +499,7 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 					Rectangle r = shownRect(it);
 					showMenu(m, r.x + r.width, r.y);
 				} else if (Bridge.isActionTool(slot)) Bridge.select(slot, retarget(e, it));
+				else pressTool(it,e);
 				break;
 			}
 			case MORE: {
@@ -638,6 +639,10 @@ final class Dock extends JComponent implements MouseListener, MouseMotionListene
 		changed();
 	}
 
+	private void pressTool(Item item,MouseEvent event){
+		Bridge.press(item,new MouseEvent(this,MouseEvent.MOUSE_PRESSED,event.getWhen(),event.getModifiers(),event.getX(),event.getY(),event.getClickCount(),false,MouseEvent.BUTTON1));
+	}
+	boolean cancelDrag(){if(dragItem==null)return false;longPress.stop();endDrag();relayout();return true;}
 	private void endDrag() {
 		if (ghost != null) ghost.dispose();
 		ghost = null;

@@ -385,6 +385,10 @@ final class Editor {
 
 	/** Edits an entry in place (or a new one); returns true if confirmed. */
 	static boolean edit(final Item it, boolean isNew) {
+		return edit(it,isNew,false);
+	}
+	static boolean editShelf(Item item){return edit(item,false,true);}
+	private static boolean edit(final Item it, boolean isNew, boolean shelf) {
 		final Item work = it.copy();
 		final JDialog d = new JDialog(owner(), isNew ? "New Button" : "Edit Button", true);
 		JPanel p = new JPanel(new GridBagLayout());
@@ -430,7 +434,7 @@ final class Editor {
 				});
 				addRow(p, c, row++, "File:", target, browse);
 				addRow(p, c, row++, "Argument:", args, null);
-				addNote(p, c, row++, ".ijm macros get the argument through getArgument(); other languages run through Fiji.");
+				addNote(p, c, row++, shelf?"ImageJ macro file (.ijm or .txt). Use getArgument() to read the argument.":".ijm macros get the argument through getArgument(); other languages run through Fiji.");
 				break;
 			}
 			case GROUP:
@@ -523,6 +527,9 @@ final class Editor {
 			if (work.kind == Item.Kind.MACRO) work.target = code.getText();
 			else if (work.kind == Item.Kind.COMMAND || work.kind == Item.Kind.SCRIPT) work.target = target.getText().trim();
 			work.args = args.getText().trim();
+			if(shelf&&work.kind==Item.Kind.SCRIPT&&!work.target.toLowerCase(Locale.US).endsWith(".ijm")&&!work.target.toLowerCase(Locale.US).endsWith(".txt")){
+				IJ.error("Macro Button","Choose an ImageJ macro file (.ijm or .txt) for this category.");return;
+			}
 			if (work.kind == Item.Kind.COMMAND && Menus.getCommands() != null && Menus.getCommands().get(work.target) == null) {
 				IJ.error("Side Toolbar", "There is no command \"" + work.target + "\" in Fiji's menus.\nUse Choose... to pick one.");
 				return;
@@ -545,7 +552,7 @@ final class Editor {
 		place(d);
 		d.setVisible(true);
 		if (!ok[0]) return false;
-		if (!isNew) Store.checkpoint("Edit " + it.title());
+		if (!isNew) {if(shelf)Shelf.checkpoint();else Store.checkpoint("Edit " + it.title());}
 		it.target = work.target;
 		it.args = work.args;
 		it.label = work.label;
@@ -556,8 +563,8 @@ final class Editor {
 			it.children.addAll(work.children);
 		}
 		if (!isNew) {
-			Store.save();
-			if (Dock.instance != null) Dock.instance.changed();
+			if(shelf){Shelf.save();Shelf.showAll();}
+			else{Store.save();if (Dock.instance != null) Dock.instance.changed();}
 		}
 		return true;
 	}

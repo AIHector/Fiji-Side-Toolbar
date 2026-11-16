@@ -55,6 +55,9 @@ public class Side_Toolbar implements PlugIn {
 		escapeInstalled = true;
 		java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
 			if (e.getID() != java.awt.event.KeyEvent.KEY_PRESSED || e.getKeyCode() != java.awt.event.KeyEvent.VK_ESCAPE) return false;
+			boolean cancelled=Dock.instance!=null&&Dock.instance.cancelDrag();
+			for(Shelf shelf:Shelf.all)if(shelf.view!=null)cancelled=shelf.view.cancelItemDrag()||cancelled;
+			if(cancelled)return true;
 			javax.swing.MenuElement[] path = javax.swing.MenuSelectionManager.defaultManager().getSelectedPath();
 			if (!ownMenu(path)) return false;
 			javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath();
@@ -238,7 +241,15 @@ public class Side_Toolbar implements PlugIn {
 			+ "<li><b>Spring</b>: empty space that pushes the next buttons to the bottom of the bar.</li>"
 			+ "<li><b>\u2022\u2022\u2022</b> (beside +): settings, undo, export, import, reset, and the classic toolbar.</li>"
 			+ "</ul>"
-			+ "<p>Every change is saved at once to " + Store.file().getPath() + ".</p>"
+			+ "<h3>Shelves: Tools, Images and Macros</h3>"
+			+ "<p>Drag a button within its category to reorder it. Neighbours slide aside and the outlined gap shows "
+			+ "the destination. Escape cancels. Shelf drops outside the category cancel without running a macro or closing an image.</p>"
+			+ "<p>Scroll over a category to reach more buttons; hold a dragged button at its end to scroll. "
+			+ "Right-click for Edit Launcher, image name/icon/preview controls, macro file and appearance, or hiding. "
+			+ "Use <b>This Bar &gt; Undo Bar Change</b> to undo shelf changes. <b>Show Hidden Tools/Images</b> restores hidden tiles.</p>"
+			+ "<p>Tool and macro order is saved between launches. Image order, aliases, icons and hiding last for the session; "
+			+ "the image itself is unchanged. Drag an empty part of a floating shelf to move the whole bar.</p>"
+			+ "<p>Drawing-tool settings: " + Store.file().getPath() + ".<br>Shelf settings: " + Shelf.file().getPath() + ".</p>"
 			+ "</body></html>";
 	}
 }

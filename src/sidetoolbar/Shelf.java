@@ -24,6 +24,12 @@ final class Shelf {
 		final String kind;
 		final List<Item> items = new ArrayList<Item>(); // pinned windows (target = command, args = window title) or macros
 		boolean hidden;                                  // kept (with its macros) but not shown
+		final List<String> windowOrder = new ArrayList<String>();
+		final List<String> hiddenWindows = new ArrayList<String>();
+		final java.util.IdentityHashMap<Item,String> itemIDs = new java.util.IdentityHashMap<>();
+		final java.util.WeakHashMap<ij.ImagePlus,Integer> imageOrder = new java.util.WeakHashMap<>();
+		final java.util.WeakHashMap<ij.ImagePlus,Boolean> hiddenImages = new java.util.WeakHashMap<>();
+		final java.util.WeakHashMap<ij.ImagePlus,Item> imageLooks = new java.util.WeakHashMap<>();
 		Section(String kind) { this.kind = kind; }
 
 		String title() {
@@ -51,7 +57,16 @@ final class Shelf {
 
 	static final List<Shelf> all = new ArrayList<Shelf>();
 	private static boolean loaded;
-	private static final List<String> undo = new ArrayList<String>();
+	private static final List<UndoState> undo = new ArrayList<UndoState>();
+	private static final class UndoState {
+		final String text = serialize();
+		final List<java.util.WeakHashMap<ij.ImagePlus,Integer>> images = new ArrayList<>();
+		final List<java.util.WeakHashMap<ij.ImagePlus,Boolean>> hidden = new ArrayList<>();
+		final List<java.util.WeakHashMap<ij.ImagePlus,Item>> looks = new ArrayList<>();
+		final java.util.WeakHashMap<ij.ImagePlus,String> names=ShelfView.copyImageNames();
+		UndoState(){for(Shelf s:all)for(Section c:s.sections){images.add(new java.util.WeakHashMap<>(c.imageOrder));hidden.add(new java.util.WeakHashMap<>(c.hiddenImages));
+			java.util.WeakHashMap<ij.ImagePlus,Item> copy=new java.util.WeakHashMap<>();for(java.util.Map.Entry<ij.ImagePlus,Item> e:c.imageLooks.entrySet())copy.put(e.getKey(),e.getValue().copy());looks.add(copy);}}
+	}
 
 	static File file() {
 		String dir = Prefs.getPrefsDir();
@@ -99,12 +114,16 @@ final class Shelf {
 	}
 
 	static String serialize() {
-		StringBuilder b = new StringBuilder("# Fiji Side Toolbar shelves, version 1. Edit with Fiji closed.\n");
+		StringBuilder b = new StringBuilder("# Fiji Side Toolbar shelves, version 2. Edit with Fiji closed.\n");
 		for (Shelf s : all) {
 			b.append("shelf\tplace=").append(s.place).append("\tx=").append(s.x).append("\ty=").append(s.y).append('\n');
 			for (Section c : s.sections) {
 				b.append("  section\tkind=").append(c.kind).append(c.hidden ? "\thidden=1" : "").append('\n');
 				for (Item it : c.items) it.write(b, "    ");
+				c.itemIDs.keySet().retainAll(c.items);
+				if(c.kind.equals(WINDOWS))for(int i=0;i<c.items.size();i++)b.append("    itemid\tindex=").append(i).append("\tid=").append(c.itemIDs.computeIfAbsent(c.items.get(i),item->java.util.UUID.randomUUID().toString())).append('\n');
+				for(String key:c.windowOrder)b.append("    order\tkey=").append(Item.escape(key)).append('\n');
+				for(String key:c.hiddenWindows)b.append("    hide\tkey=").append(Item.escape(key)).append('\n');
 				b.append("  endsection\n");
 			}
 			b.append("endshelf\n");
@@ -140,6 +159,12 @@ final class Shelf {
 			} else if (p[0].equals("endshelf")) {
 				cur = null;
 			} else if (sec != null) {
+				if(p[0].equals("itemid")&&p.length==3&&p[1].startsWith("index=")&&p[2].startsWith("id=")){
+					int index=Integer.parseInt(p[1].substring(6));if(index>=0&&index<sec.items.size())sec.itemIDs.put(sec.items.get(index),p[2].substring(3));continue;
+				}
+				if((p[0].equals("order")||p[0].equals("hide"))&&p.length>1&&p[1].startsWith("key=")){
+					(p[0].equals("order")?sec.windowOrder:sec.hiddenWindows).add(Item.unescape(p[1].substring(4)));continue;
+				}
 				Item it = Item.parseLine(t);
 				if (it != null) sec.items.add(it);
 			}
@@ -153,7 +178,7 @@ final class Shelf {
 	}
 
 	static void checkpoint() {
-		undo.add(serialize());
+		undo.add(new UndoState());
 		if (undo.size() > 50) undo.remove(0);
 	}
 
@@ -161,10 +186,12 @@ final class Shelf {
 
 	static void undo() {
 		if (undo.isEmpty()) return;
-		String text = undo.remove(undo.size() - 1);
+		UndoState state = undo.remove(undo.size() - 1);
 		for (Shelf s : all) if (s.view != null) s.view.dispose();
 		all.clear();
-		all.addAll(parse(text));
+		all.addAll(parse(state.text));
+		int index=0;for(Shelf s:all)for(Section c:s.sections){c.imageOrder.putAll(state.images.get(index));c.hiddenImages.putAll(state.hidden.get(index));c.imageLooks.putAll(state.looks.get(index++));}
+		ShelfView.restoreImageNames(state.names);
 		save();
 		showAll();
 	}

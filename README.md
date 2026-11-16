@@ -38,6 +38,7 @@ ImageJ's own toolbar keeps running, hidden, underneath: every tool behaves exact
 | **A shelf for your work** | open tool windows (and pinned launchers, like the macOS Dock), live image previews, one-click macros |
 | **Image previews that act** | right-click a preview to place it on the screen, duplicate, copy, zoom, save as TIFF, PNG, JPEG, PDF and more |
 | **Macros on chosen images** | a macro button runs on the front image, on the images you tick, or (optionally) on every image of a folder |
+| **Rearrange every category** | drag tools, image tiles and macros within their shelf category; animated gaps show the destination, Escape cancels, and Undo restores the previous layout |
 | **Fits your screen** | one, two or three columns; shelf bars at the bottom, the top, beside the toolbar, at the right edge or floating; drag a bar's edge to resize it |
 | **Moves between displays** | drag the status strip to another display (or move it there with a window manager's shortcut or gesture) and the toolbar, the strip and the shelves all go with it; Fiji can open on the largest landscape display |
 | **Easy to leave** | one command brings ImageJ's horizontal toolbar back; deleting two files uninstalls it |
@@ -130,7 +131,7 @@ Then start Fiji. To uninstall, delete the two files; ImageJ's toolbar comes back
 | Click *Dev*, *Stk*, *LUT* (menu tools) | Their menu |
 | Click **»** | Switch toolsets, add ImageJ's extra tools (Brush, Pencil, Arrow, Pixel Inspector, ...) |
 
-Escape closes any menu opened from the bar or the shelf. The bars never take the keyboard focus (a click on a tool leaves your image active), so the key is caught as it reaches Fiji's front window.
+Escape cancels an in-progress button drag, or closes any menu opened from the bar or the shelf. The bars never take the keyboard focus (a click on a tool leaves your image active), so the key is caught as it reaches Fiji's front window.
 
 A small red triangle marks a tool that has a menu, as on ImageJ's toolbar. The selected tool is highlighted. Moving the mouse over a button shows ImageJ's usual hint in the status strip and, after a moment, a tooltip beside the bar.
 
@@ -199,6 +200,24 @@ A second kind of bar, the **shelf**, sits at the bottom of the screen by default
 | **Images** (centre) | a live preview of each open image (redrawn at most twice a second); the active image is outlined in blue. Many images scroll with the mouse wheel | bring the image to the front | **Name in the Shelf** (a name shown only by the shelf, for this session; the image keeps its title), Duplicate, Copy to Clipboard (to paste in other apps), Copy (ImageJ), **Place on Screen** (halves, quarters, thirds, two-thirds, centre, whole screen, back to where it was; each entry shows its Window Layouts shortcut), **Move to Display** (next, previous), **Apply Layout** (0 to 9), **Zoom** (in, out, 100%, original scale, to selection; *Switch Fill / Fit* with its shortcut; and what the image does in its window when it is placed or resized: keep the zoom, fill the window, fit the whole image, or fit and shrink the window), **Image** (rename, properties, info), **Undo History**, Save, **Save As** (TIFF, PNG, JPEG, GIF, BMP, TIFF in ZIP, OME-TIFF through Bio-Formats, AVI for stacks, PDF with one page per plane), Close |
 | **Macros** (right) | one button per macro file (.ijm), with a name, initials or icon you choose; **+** adds one | runs the macro: on the image if one is open; with several, a dialog asks which (the active one is ticked; *All open images* ticks them all) | run, run on chosen images, edit the macro, rename / initials / icon, move, remove (the file stays) |
 
+### Drag, drop and edit shelf buttons
+
+Drag a button within its **Tools**, **Images** or **Macros** category. Its neighbours slide aside and an outlined gap shows where it will land. This works in bottom/top/floating horizontal bars and side columns. Release to save the new order. **Escape** cancels. Dropping on another category or outside the shelf cancels the shelf move; it neither runs the button nor closes its image or tool. The main drawing-tool bar keeps its existing drag-off-to-remove action and Undo.
+
+Tools and macros retain their saved order between launches. Tools may be arranged among pinned launchers and currently open tool windows. Duplicate launchers have independent saved identities, and changing a name, icon or command preserves position. An unavailable command's button stays visible so it can be corrected or removed.
+
+Image order follows live image identities for this session. New images append after those manually arranged; a new image with a reused name or ImageJ ID does not inherit an old image's position. Image aliases, custom icons and hidden-image choices are session settings. They do not rename image files, change their pixels or become processing steps in Undo History.
+
+Right-click a button for editing:
+
+- **Tools:** **Edit Launcher…** changes its name, command and matching window title. **Choose Command…** searches Fiji's commands. **Rename, Initials or Icon…** changes its appearance. **Add Tool Launcher…** adds a new button. Renaming an unpinned open tool pins its launcher.
+- **Images:** **Name, Initials or Icon for This Tile…** replaces the preview with chosen initials or an icon, or changes its displayed name. **Use Image Preview** restores the thumbnail. **Hide from This Shelf** leaves the image open.
+- **Macros:** **Edit Button and Macro File…** changes its ImageJ macro file, argument, name, icon and colour; **Edit Macro** opens the macro code. Removing the button keeps the macro file.
+
+**Move Earlier / Move Later** provides an alternative to dragging in every category. **This Bar > Undo Bar Change** reverses shelf reordering and editing, including image aliases, icons and hiding. The main drawing-tool bar has its own Undo menu. Hidden tiles can be restored with **Show Hidden Tools/Images** in their category menu. An empty category retains an add button and a recovery menu.
+
+Scroll with the wheel or trackpad over a category to reach overflowed items. While dragging, hold near that category's end to scroll through it. Narrow bars keep categories in separate regions, so long tool or macro lists remain reachable without covering neighbouring categories. Drag a floating bar by its empty area to move the whole bar; its inner edge still resizes it.
+
 **Adding macros:** **+** › *Add Macro File (.ijm)...*, or *New Macro...* (creates the file in Fiji's `macros/Side Toolbar` folder and opens it in the editor), or drop .ijm files on the shelf. Images dropped on the shelf open in Fiji.
 
 **Every image in a folder (optional).** Off by default, to spare memory. When switched on in the settings, the image dialog offers it: each image of the folder is opened without being shown, processed, saved as TIFF in a folder you choose, and closed before the next, so only one is in memory at a time.
@@ -229,7 +248,7 @@ All three are in ImageJ's settings folder: `~/Library/Preferences/` on macOS, `.
 | File | Content |
 |---|---|
 | `IJ_Side_Toolbar.txt` | The bar's buttons, one per line (readable; edit only with Fiji closed) |
-| `IJ_Side_Toolbar_Shelves.txt` | The shelf bars: their places, sections and pinned buttons |
+| `IJ_Side_Toolbar_Shelves.txt` | Shelf positions, categories, launchers, saved tool/macro order and hidden tools; image ordering and appearance remain in-session |
 | `IJ_Prefs.txt` | The settings, keys `sidetoolbar.*` |
 
 The contents file is written through a temporary file, so a crash never leaves it half-written. Example:
@@ -317,3 +336,13 @@ On macOS with three displays (a laptop screen, a 2560 × 1440 monitor above it, 
 ## License
 
 MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
+
+## Version 0.2.5-dev1
+
+Histogram, Plot and other specialized image-backed windows appear as tools in the window shelf. Image thumbnails and batch-image actions include only ordinary ImageJ image and stack windows, so tool-rendering pixels are not offered as input images.
+
+## Version 0.3.0-dev1
+
+All shelf categories support button drag-and-drop, animated insertion gaps, edge scrolling, Escape cancellation and Undo. Tool/macro order persists; live image ordering and appearance use session identities. Tool launchers and macro buttons have full editing controls, and image tiles offer aliases, custom icons, previews and reversible hiding. Reordering drawing tools now defers activation until an ordinary click is completed.
+
+Validation: 95 existing headless checks, 15 ordering/persistence checks, 40 component interaction checks and 44 native-tool regression checks. The interaction suite loads the installed Window Layouts and Undo History plugins and verifies that rearrangement preserves fractional zoom and adds no image-processing history steps. The tests use separate ImageJ processes and private preferences without physical mouse or keyboard input. Mac pointer/trackpad acceptance, Windows/Linux and a real monitor disconnect remain unverified. Run `./test.sh` and `./test-drag.sh`; builds use `./build.sh --no-install` until Fiji is closed for a coordinated installation.

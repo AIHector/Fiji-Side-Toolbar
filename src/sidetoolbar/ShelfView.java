@@ -66,14 +66,24 @@ final class ShelfView extends JComponent implements ImageListener {
 	private final Timer poll;
 	private Tile hover, pressed;
 	private Point dragFrom;
-	private int imageScroll;
+	private final Map<Shelf.Section,Integer> scrollOffsets = new java.util.HashMap<>();
 	private int signature;
 	private final Dock.Tip tip = new Dock.Tip();
 	private Rectangle resizeFrom; // the bar's bounds when a drag of its inner edge started
 	private Point resizeStart;
+	private Point itemPress, itemPointer;
+	private Tile dragging;
+	private List<Tile> dragOriginal, dragPreview;
+	private List<Rectangle> dragSlots;
+	private boolean validDrop;
+	private final Map<Object,double[]> shown = new java.util.HashMap<>();
+	private final Timer slide = new Timer(16,e -> animateTiles());
+	private final Timer dragScroll = new Timer(70,e -> autoScrollDrag());
 
 	/** Names the shelf shows instead of image titles (the images keep their titles); for this session only. */
 	private static final Map<ImagePlus, String> imageNames = java.util.Collections.synchronizedMap(new WeakHashMap<ImagePlus, String>());
+	static WeakHashMap<ImagePlus,String> copyImageNames(){synchronized(imageNames){return new WeakHashMap<>(imageNames);}}
+	static void restoreImageNames(Map<ImagePlus,String> names){imageNames.clear();imageNames.putAll(names);}
 
 	static String nameOf(ImagePlus imp) {
 		String n = imageNames.get(imp);
@@ -88,6 +98,7 @@ final class ShelfView extends JComponent implements ImageListener {
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		String n = gd.getNextString().trim();
+		Shelf.checkpoint();
 		if (n.isEmpty() || n.equals(imp.getTitle())) imageNames.remove(imp); else imageNames.put(imp, n);
 		for (Shelf sh : Shelf.all) if (sh.view != null) sh.view.repaint();
 	}
@@ -119,8 +130,7 @@ final class ShelfView extends JComponent implements ImageListener {
 			public void mouseMoved(MouseEvent e) { moved(e); }
 			public void mouseExited(MouseEvent e) { hover = null; tip.hide(); repaint(); }
 			public void mouseWheelMoved(MouseWheelEvent e) {
-				imageScroll = Math.max(0, imageScroll + e.getWheelRotation() * 40);
-				rebuild();
+				Shelf.Section section=sectionAt(e.getPoint());if(section!=null)scrollCategory(section,e.getWheelRotation()*40);
 			}
 		};
 		addMouseListener(m);
@@ -134,6 +144,7 @@ final class ShelfView extends JComponent implements ImageListener {
 
 	void dispose() {
 		poll.stop();
+		cancelItemDrag();slide.stop();
 		tip.hide();
 		ImagePlus.removeImageListener(this);
 		window.dispose();
@@ -157,8 +168,8 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private int count(Shelf.Section c) {
-		if (c.kind.equals(Shelf.IMAGES)) return Math.max(1, ShelfView.images().size());
-		if (c.kind.equals(Shelf.WINDOWS)) return windowTiles(c).size();
+		if (c.kind.equals(Shelf.IMAGES)) return Math.max(1, tilesOf(c).size());
+		if (c.kind.equals(Shelf.WINDOWS)) return Math.max(1,windowTiles(c).size());
 		return c.items.size() + 1;
 	}
 
@@ -177,27 +188,20 @@ final class ShelfView extends JComponent implements ImageListener {
 			// widths of the sections; images take what is left and scroll when they do not fit
 			int w = Math.max(getWidth(), 1);
 			int[] need = new int[secs.size()];
-			int fixed = 0;
 			for (int i = 0; i < secs.size(); i++) {
 				Shelf.Section c = secs.get(i);
 				need[i] = count(c) * (tileWidth(c) + GAP) + (c.kind.equals(Shelf.MACROS) ? 0 : 0);
-				if (!c.kind.equals(Shelf.IMAGES)) fixed += need[i] + SEP;
 			}
 			// sections before the images go from the start, those after it from the end; the images take the space
 			// in between with their previews centred. Without images, the last section goes to the end.
 			int img = -1;
 			for (int i = 0; i < secs.size(); i++) if (secs.get(i).kind.equals(Shelf.IMAGES)) img = i;
-			int split = img >= 0 ? img : secs.size() - 1;
-			Rectangle[] areas = new Rectangle[secs.size()];
-			int x = PAD;
-			for (int i = 0; i < split; i++) { areas[i] = new Rectangle(x, 0, need[i], s); x += need[i] + SEP; }
-			int end = w - PAD;
-			for (int i = secs.size() - 1; i > split; i--) { areas[i] = new Rectangle(end - need[i], 0, need[i], s); end -= need[i] + SEP; }
-			if (split >= 0 && split < secs.size()) {
-				Shelf.Section c = secs.get(split);
-				areas[split] = c.kind.equals(Shelf.IMAGES) ? new Rectangle(x, 0, Math.max(tileWidth(c), end - x), s)
-					: new Rectangle(Math.max(x, end - need[split]), 0, need[split], s);
-			}
+			int available=Math.max(secs.size(),w-2*PAD-Math.max(0,secs.size()-1)*SEP),total=0;
+			for(int n:need)total+=n;
+			if(total>available){for(int i=0;i<need.length;i++)need[i]=available/need.length+(i<available%need.length?1:0);}
+			else if(need.length>0)need[img>=0?img:need.length-1]+=available-total;
+			Rectangle[] areas = new Rectangle[secs.size()];int x=PAD;
+			for(int i=0;i<secs.size();i++){areas[i]=new Rectangle(x,0,need[i],s);x+=need[i]+SEP;}
 			for (int i = 0; i < secs.size(); i++) {
 				sectionRects.add(areas[i]);
 				layoutRow(secs.get(i), areas[i], inner);
@@ -211,18 +215,28 @@ final class ShelfView extends JComponent implements ImageListener {
 				x += s + SEP;
 			}
 		}
-		repaint();
+		java.util.Set<Object> present=new java.util.HashSet<>();
+		for(Tile tile:tiles){Object key=ShelfOrder.identity(tile);if(key!=null){present.add(key);if(!shown.containsKey(key))shown.put(key,new double[]{tile.r.x,tile.r.y});}}
+		shown.keySet().retainAll(present);slide.start();repaint();
 	}
+
+	private void animateTiles(){
+		boolean moving=false;for(Tile tile:tiles){double[] p=shown.get(ShelfOrder.identity(tile));if(p==null)continue;
+			if(Math.abs(p[0]-tile.r.x)<.5&&Math.abs(p[1]-tile.r.y)<.5){p[0]=tile.r.x;p[1]=tile.r.y;}
+			else{p[0]+=(tile.r.x-p[0])*.4;p[1]+=(tile.r.y-p[1])*.4;moving=true;}}
+		repaint();if(!moving)slide.stop();
+	}
+	private Rectangle paintedRect(Tile tile){double[] p=shown.get(ShelfOrder.identity(tile));return p==null?tile.r:new Rectangle((int)Math.round(p[0]),(int)Math.round(p[1]),tile.r.width,tile.r.height);}
 
 	private void layoutRow(Shelf.Section c, Rectangle area, int inner) {
 		List<Tile> l = tilesOf(c);
 		int tw = tileWidth(c);
 		int total = l.size() * (tw + GAP) - GAP;
 		int x = area.x;
-		if (c.kind.equals(Shelf.IMAGES)) {
-			if (total <= area.width) { x = area.x + (area.width - total) / 2; imageScroll = 0; } // centred
-			else { imageScroll = Math.min(imageScroll, total - area.width); x = area.x - imageScroll; }
-		}
+		int scroll=Math.max(0,Math.min(scrollOffsets.getOrDefault(c,0),Math.max(0,total-area.width)));scrollOffsets.put(c,scroll);
+		if(total>area.width)x-=scroll;
+		else if(c.kind.equals(Shelf.IMAGES))x+=(area.width-total)/2;
+		else if(shelf.shown().size()>1&&shelf.shown().get(shelf.shown().size()-1)==c)x+=area.width-total;
 		for (Tile t : l) {
 			t.r = new Rectangle(x, PAD, tw, inner);
 			x += tw + GAP;
@@ -234,7 +248,9 @@ final class ShelfView extends JComponent implements ImageListener {
 		List<Tile> l = tilesOf(c);
 		boolean img = c.kind.equals(Shelf.IMAGES);
 		int th = img ? (int) Math.round(inner * 0.8) : inner;
-		int y = PAD - (img ? imageScroll : 0);
+		int total=l.size()*(th+GAP)-GAP;
+		int scroll=Math.max(0,Math.min(scrollOffsets.getOrDefault(c,0),Math.max(0,total-area.height+2*PAD)));scrollOffsets.put(c,scroll);
+		int y = PAD-scroll;
 		for (Tile t : l) {
 			t.r = new Rectangle(area.x + PAD, y, inner, th);
 			y += th + GAP;
@@ -243,12 +259,17 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private List<Tile> tilesOf(Shelf.Section c) {
+		if(dragging!=null&&c==dragging.section&&dragPreview!=null){
+			List<Tile> preview=new ArrayList<>(dragPreview);
+			if(c.kind.equals(Shelf.MACROS)){Tile add=new Tile();add.kind="add";add.section=c;preview.add(add);}return preview;
+		}
 		List<Tile> l = new ArrayList<Tile>();
 		if (c.kind.equals(Shelf.WINDOWS)) l.addAll(windowTiles(c));
 		else if (c.kind.equals(Shelf.IMAGES)) {
 			for (ImagePlus imp : images()) {
+				if(c.hiddenImages.containsKey(imp))continue;
 				Tile t = new Tile();
-				t.section = c; t.kind = "image"; t.imp = imp;
+				t.section = c; t.kind = "image"; t.imp = imp;t.item=c.imageLooks.get(imp);
 				l.add(t);
 			}
 		} else {
@@ -261,26 +282,29 @@ final class ShelfView extends JComponent implements ImageListener {
 			add.section = c; add.kind = "add";
 			l.add(add);
 		}
-		return l;
+		if(l.isEmpty()){Tile add=new Tile();add.section=c;add.kind="add";l.add(add);}
+		ShelfOrder.sort(c,l);return l;
 	}
 
 	/** Pinned tools (open or not), then the other open tool windows. */
 	private List<Tile> windowTiles(Shelf.Section c) {
 		List<Tile> l = new ArrayList<Tile>();
 		List<Window> open = toolWindows();
+		List<Window> matchable = new ArrayList<>(open);
 		for (Item it : c.items) {
 			Tile t = new Tile();
 			t.section = c; t.kind = "window"; t.item = it;
-			for (Window w : open) if (it.args.equals(titleOf(w))) { t.window = w; break; }
+			for (Window w : matchable) if (it.args.equals(titleOf(w))) { t.window = w; break; }
 			if (t.window != null) open.remove(t.window);
-			if (t.window != null || isAvailable(it)) l.add(t);
+			if (!c.hiddenWindows.contains(ShelfOrder.windowKey(t))) l.add(t);
 		}
 		for (Window w : open) {
+			if(c.hiddenWindows.contains("window:"+titleOf(w)))continue;
 			Tile t = new Tile();
 			t.section = c; t.kind = "window"; t.window = w;
 			l.add(t);
 		}
-		return l;
+		ShelfOrder.sort(c,l);return l;
 	}
 
 	static boolean isAvailable(Item it) {
@@ -294,11 +318,18 @@ final class ShelfView extends JComponent implements ImageListener {
 		return null;
 	}
 
-	/** Visible tool windows: titled, not images, not the ImageJ window, not modal dialogs. */
+	/** Native image-backed tools are not editable data-image windows. Leave unknown subclasses as tools. */
+	static boolean isImageWindow(Window window) {
+		if (window == null) return false;
+		Class<?> type = window.getClass();
+		return type == ImageWindow.class || type == ij.gui.StackWindow.class;
+	}
+
+	/** Visible tool windows: titled, not data images, not the ImageJ window, not modal dialogs. */
 	static List<Window> toolWindows() {
 		List<Window> l = new ArrayList<Window>();
 		for (Window w : Window.getWindows()) {
-			if (!w.isVisible() || w instanceof ImageWindow || w == IJ.getInstance()) continue;
+			if (!w.isVisible() || isImageWindow(w) || w == IJ.getInstance()) continue;
 			if (w instanceof Dialog && ((Dialog) w).isModal()) continue;
 			String t = titleOf(w);
 			if (t == null || t.trim().isEmpty() || t.startsWith("Add Buttons") || t.equals("Edit Button")) continue;
@@ -312,13 +343,14 @@ final class ShelfView extends JComponent implements ImageListener {
 		int[] ids = WindowManager.getIDList();
 		if (ids != null) for (int id : ids) {
 			ImagePlus imp = WindowManager.getImage(id);
-			if (imp != null && imp.getWindow() != null && imp.getWindow().isVisible()) l.add(imp);
+			if (imp != null && isImageWindow(imp.getWindow()) && imp.getWindow().isVisible()) l.add(imp);
 		}
 		return l;
 	}
 
 	/** Every 0.6 s: re-lay out when windows or images came or went, redraw changed previews. */
 	private void refresh() {
+		if(dragging!=null)return;
 		int sig = 17;
 		for (Window w : toolWindows()) sig = sig * 31 + System.identityHashCode(w);
 		for (ImagePlus imp : images()) sig = sig * 31 + imp.getID() + imp.getTitle().hashCode();
@@ -385,12 +417,23 @@ final class ShelfView extends JComponent implements ImageListener {
 		}
 		Rectangle clip = g.getClipBounds();
 		for (Tile t : tiles) {
-			if (clip != null && !clip.intersects(t.r)) continue;
+			if (ShelfOrder.same(t,dragging)) continue;
+			Rectangle displayed=paintedRect(t);
+			if (clip != null && !clip.intersects(displayed)) continue;
 			Rectangle area = sectionRects.get(Math.max(0, shelf.shown().indexOf(t.section)));
 			Graphics2D gt = (Graphics2D) g.create();
 			gt.clip(area);
+			gt.translate(displayed.x-t.r.x,displayed.y-t.r.y);
 			paintTile(gt, t);
 			gt.dispose();
+		}
+		if(dragging!=null&&itemPointer!=null){
+			g.setColor(validDrop?Dock.ACCENT:new Color(190,70,70));g.setStroke(new BasicStroke(2f));
+			Rectangle gap=dragging.r;g.drawRoundRect(gap.x+1,gap.y+1,gap.width-3,gap.height-3,8,8);
+			Rectangle original=dragging.r;dragging.r=new Rectangle(itemPointer.x-original.width/2,itemPointer.y-original.height/2,original.width,original.height);
+			Graphics2D ghost=(Graphics2D)g.create();ghost.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,.8f));
+			ghost.setColor(Dock.BG);ghost.fillRoundRect(dragging.r.x,dragging.r.y,dragging.r.width,dragging.r.height,8,8);
+			try{paintTile(ghost,dragging);}finally{ghost.dispose();dragging.r=original;}
 		}
 		if (dropHint) {
 			g.setColor(new Color(45, 110, 200, 40));
@@ -409,8 +452,8 @@ final class ShelfView extends JComponent implements ImageListener {
 		if (t.kind.equals("image")) {
 			int labelH = Math.max(10, r.height / 5);
 			Rectangle pic = new Rectangle(r.x + 2, r.y + 2, r.width - 4, r.height - labelH - 4);
-			BufferedImage th = thumb(t.imp, pic.width, pic.height);
-			if (th != null) g.drawImage(th, pic.x + (pic.width - th.getWidth()) / 2, pic.y + (pic.height - th.getHeight()) / 2, null);
+			if(t.item!=null&&!t.item.icon.isEmpty()){int size=Math.min(pic.width,pic.height);Icons.paint(g,t.item,pic.x+(pic.width-size)/2,pic.y+(pic.height-size)/2,size);}
+			else{BufferedImage th = thumb(t.imp, pic.width, pic.height);if (th != null) g.drawImage(th, pic.x + (pic.width - th.getWidth()) / 2, pic.y + (pic.height - th.getHeight()) / 2, null);}
 			if (current) {
 				g.setColor(Dock.ACCENT);
 				g.setStroke(new BasicStroke(2f));
@@ -472,7 +515,7 @@ final class ShelfView extends JComponent implements ImageListener {
 	// ---------------------------------------------------------------- mouse
 
 	private Tile tileAt(Point p) {
-		for (Tile t : tiles) if (t.r.contains(p)) {
+		for (Tile t : tiles) if (paintedRect(t).contains(p)) {
 			int i = shelf.shown().indexOf(t.section);
 			if (i >= 0 && i < sectionRects.size() && !sectionRects.get(i).contains(p)) continue;
 			return t;
@@ -530,7 +573,9 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private void pressed(MouseEvent e) {
+		if(dragging!=null)cancelItemDrag();
 		tip.hide();
+		itemPress=null;
 		if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger() && onInnerEdge(e.getPoint())) {
 			resizeFrom = window.getBounds();
 			resizeStart = e.getLocationOnScreen();
@@ -539,13 +584,21 @@ final class ShelfView extends JComponent implements ImageListener {
 			return;
 		}
 		pressed = tileAt(e.getPoint());
-		dragFrom = shelf.docked() || pressed != null ? null : e.getLocationOnScreen();
+		if(SwingUtilities.isLeftMouseButton(e)&&pressed!=null&&!pressed.kind.equals("add"))itemPress=e.getPoint();
+		dragFrom = shelf.docked() || pressed != null || !SwingUtilities.isLeftMouseButton(e) ? null : e.getLocationOnScreen();
 		if (e.isPopupTrigger()) { menu(e); pressed = null; }
 		repaint();
 	}
 
 	private void dragged(MouseEvent e) {
 		if (resizeFrom != null) { resizeTo(e.getLocationOnScreen()); return; }
+		if(itemPress!=null&&pressed!=null){
+			if(dragging==null){if(itemPress.distance(e.getPoint())<6)return;
+				dragging=pressed;dragOriginal=contentTiles(dragging.section);dragSlots=new ArrayList<>();
+				for(Tile t:dragOriginal)dragSlots.add(new Rectangle(t.r));
+				dragPreview=new ArrayList<>(dragOriginal);hover=null;dragScroll.start();
+			}updateItemDrag(e.getPoint());return;
+		}
 		if (dragFrom == null) return; // a floating shelf moves when dragged by its empty area
 		Point now = e.getLocationOnScreen();
 		Point loc = window.getLocation();
@@ -584,6 +637,8 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private void released(MouseEvent e) {
+		if(dragging!=null){finishItemDrag(e.getPoint());return;}
+		itemPress=null;
 		if (resizeFrom != null) { // every bar takes the new size; windows move only if the bars' bands changed
 			resizeFrom = null;
 			Shelf.showAll();
@@ -603,9 +658,40 @@ final class ShelfView extends JComponent implements ImageListener {
 		Tile t = pressed;
 		pressed = null;
 		repaint();
-		if (t == null || t != tileAt(e.getPoint()) || !SwingUtilities.isLeftMouseButton(e)) return;
+		if (t == null || !ShelfOrder.same(t,tileAt(e.getPoint())) || !SwingUtilities.isLeftMouseButton(e)) return;
 		click(t, e);
 	}
+
+	private List<Tile> contentTiles(Shelf.Section section){
+		List<Tile> result=new ArrayList<>();for(Tile t:tiles)if(t.section==section&&!t.kind.equals("add"))result.add(t);return result;
+	}
+	private void updateItemDrag(Point point){
+		itemPointer=new Point(point);validDrop=new Rectangle(0,0,getWidth(),getHeight()).contains(point)&&sectionAt(point)==dragging.section;
+		int index=0;for(int i=0;i<dragOriginal.size();i++)if(!ShelfOrder.same(dragOriginal.get(i),dragging)){
+			Rectangle slot=dragSlots.get(i);if((shelf.horizontal()?point.x:point.y)>(shelf.horizontal()?slot.getCenterX():slot.getCenterY()))index++;
+		}
+		dragPreview=validDrop?ShelfOrder.moved(dragOriginal,dragging,index):new ArrayList<>(dragOriginal);
+		setCursor(Cursor.getPredefinedCursor(validDrop?Cursor.MOVE_CURSOR:Cursor.DEFAULT_CURSOR));rebuild();
+	}
+	private void scrollCategory(Shelf.Section section,int delta){
+		int before=scrollOffsets.getOrDefault(section,0);scrollOffsets.put(section,Math.max(0,before+delta));rebuild();
+		int moved=scrollOffsets.getOrDefault(section,0)-before;
+		if(dragging!=null&&dragging.section==section&&moved!=0){for(Rectangle slot:dragSlots)if(shelf.horizontal())slot.x-=moved;else slot.y-=moved;updateItemDrag(itemPointer);}
+	}
+	private void autoScrollDrag(){
+		if(dragging==null||!validDrop||itemPointer==null)return;Rectangle area=sectionRects.get(shelf.shown().indexOf(dragging.section));
+		int p=shelf.horizontal()?itemPointer.x:itemPointer.y,start=shelf.horizontal()?area.x:area.y,end=start+(shelf.horizontal()?area.width:area.height);
+		if(p<start+14)scrollCategory(dragging.section,-14);else if(p>end-14)scrollCategory(dragging.section,14);
+	}
+	private void finishItemDrag(Point point){
+		updateItemDrag(point);Tile moved=dragging;List<Tile> result=new ArrayList<>(dragPreview);boolean valid=validDrop&&!ShelfOrder.equal(dragOriginal,result);
+		// Resolve current live contents before committing: a closed image or removed macro cannot be moved by a stale drag.
+		dragging=null;dragPreview=null;List<Tile> current=tilesOf(moved.section);current.removeIf(t->t.kind.equals("add"));
+		if(valid&&ShelfOrder.equal(current,dragOriginal)){Shelf.checkpoint();ShelfOrder.apply(moved.section,result);Shelf.save();}
+		clearItemDrag();rebuild();
+	}
+	boolean cancelItemDrag(){boolean active=dragging!=null;clearItemDrag();if(active)rebuild();return active;}
+	private void clearItemDrag(){dragScroll.stop();dragging=null;dragOriginal=null;dragPreview=null;dragSlots=null;itemPress=null;itemPointer=null;pressed=null;validDrop=false;setCursor(Cursor.getDefaultCursor());}
 
 	private void moved(MouseEvent e) {
 		if (onInnerEdge(e.getPoint())) {
@@ -624,12 +710,12 @@ final class ShelfView extends JComponent implements ImageListener {
 		String text;
 		if (t.kind.equals("image")) text = "<b>" + Dock.Tip.esc(nameOf(t.imp)) + "</b><br>"
 			+ (nameOf(t.imp).equals(t.imp.getTitle()) ? "" : "Image: " + Dock.Tip.esc(t.imp.getTitle()) + "<br>") + t.imp.getWidth() + " × " + t.imp.getHeight()
-			+ (t.imp.getStackSize() > 1 ? " × " + t.imp.getStackSize() : "") + "<br><font color='#777777'>Click: bring to front. Right-click: place, zoom, more</font>";
-		else if (t.kind.equals("add")) text = "Add a macro (.ijm file) to this shelf, or drop .ijm files here";
+			+ (t.imp.getStackSize() > 1 ? " × " + t.imp.getStackSize() : "") + "<br><font color='#777777'>Drag within Images to reorder. Right-click: appearance, place, zoom, more</font>";
+		else if (t.kind.equals("add")) text = t.section.kind.equals(Shelf.WINDOWS)?"Add a tool launcher":t.section.kind.equals(Shelf.IMAGES)?"Open an image":"Add a macro (.ijm file) to this shelf, or drop .ijm files here";
 		else if (t.kind.equals("macro")) text = "<b>" + Dock.Tip.esc(t.item.title()) + "</b><br>" + Dock.Tip.esc(new File(t.item.target).getName())
-			+ "<br><font color='#777777'>Click: run on the image (or choose images). Right-click: edit</font>";
+			+ "<br><font color='#777777'>Click: run. Drag within Macros to reorder. Right-click: edit</font>";
 		else text = "<b>" + Dock.Tip.esc(t.item != null ? t.item.title() : titleOf(t.window)) + "</b><br><font color='#777777'>"
-			+ (t.open() ? "Open: click to bring it to the front" : "Click to open it") + ". Right-click: more</font>";
+			+ (t.open() ? "Open: click to bring it to the front" : isAvailable(t.item)?"Click to open it":"Command unavailable; right-click to edit launcher") + ". Drag within Tools to reorder. Right-click: more</font>";
 		Point p = t.r.getLocation();
 		SwingUtilities.convertPointToScreen(p, this);
 		Rectangle anchor = new Rectangle(p.x, p.y, t.r.width, t.r.height);
@@ -669,12 +755,14 @@ final class ShelfView extends JComponent implements ImageListener {
 		Tile t = tileAt(e.getPoint());
 		Shelf.Section sec = t != null ? t.section : sectionAt(e.getPoint());
 		JPopupMenu m = new JPopupMenu();
-		if (t != null && t.kind.equals("image")) ImageMenus.fill(m, t.imp);
+		if (t != null && t.kind.equals("image")) {ImageMenus.fill(m, t.imp);
+			m.add(Bridge.item("Name, Initials or Icon for This Tile...",()->editImageLook(t)));
+			if(t.item!=null&&!t.item.icon.isEmpty())m.add(Bridge.item("Use Image Preview",()->{Shelf.checkpoint();Item look=t.item.copy();look.icon="";t.section.imageLooks.put(t.imp,look);rebuild();}));
+			addMoveItems(m,t);m.add(Bridge.item("Hide from This Shelf (keep image open)",()->hideTile(t)));}
 		else if (t != null && t.kind.equals("macro")) macroMenu(m, t);
 		else if (t != null && t.kind.equals("window")) windowMenu(m, t);
 		else if (t != null && t.kind.equals("add")) {
-			m.add(Bridge.item("Add Macro File (.ijm)...", () -> MacroShelf.addFile(t.section)));
-			m.add(Bridge.item("New Macro...", () -> MacroShelf.newMacro(t.section)));
+			if(t.section.kind.equals(Shelf.MACROS)){m.add(Bridge.item("Add Macro File (.ijm)...", () -> MacroShelf.addFile(t.section)));m.add(Bridge.item("New Macro...", () -> MacroShelf.newMacro(t.section)));}
 		}
 		if (m.getComponentCount() > 0) m.addSeparator();
 		if (sec != null) sectionMenu(m, sec);
@@ -687,36 +775,40 @@ final class ShelfView extends JComponent implements ImageListener {
 		if (t.open()) {
 			m.add(Bridge.item("Bring to Front", () -> t.window.toFront()));
 			m.add(Bridge.item("Close Window", () -> t.window.dispatchEvent(new WindowEvent(t.window, WindowEvent.WINDOW_CLOSING))));
-		} else m.add(Bridge.item("Open", () -> openTool(t.item)));
+		} else {javax.swing.JMenuItem open=Bridge.item("Open", () -> openTool(t.item));open.setEnabled(isAvailable(t.item));m.add(open);}
 		if (t.item == null) {
 			m.add(Bridge.item("Keep in Shelf (open it from here when it is closed)", () -> {
 				Shelf.checkpoint();
-				t.section.items.add(launcherFor(t.window));
+				pinTile(t,launcherFor(t.window));
 				Shelf.save();
 				rebuild();
 			}));
 			m.add(Bridge.item("Rename, Initials or Icon... (keeps it in the shelf)", () -> {
 				Item it = launcherFor(t.window);
 				if (!editLook(it)) return; // editLook saves the undo checkpoint
-				t.section.items.add(it);
+				pinTile(t,it);
 				Shelf.save();
 				rebuild();
 			}));
 		} else {
+			m.add(Bridge.item("Edit Launcher...", () -> editLauncher(t.section,t.item)));
 			m.add(Bridge.item("Rename, Initials or Icon...", () -> { if (editLook(t.item)) { Shelf.save(); rebuild(); } }));
 			m.add(Bridge.item("Remove from Shelf", () -> {
 				Shelf.checkpoint();
+				String old=ShelfOrder.windowKey(t);if(t.window!=null)replaceOrderKey(t.section,old,"window:"+titleOf(t.window));
 				t.section.items.remove(t.item);
 				Shelf.save();
 				rebuild();
 			}));
-			addMoveItems(m, t.section, t.item);
 		}
+		addMoveItems(m,t);
+		m.add(Bridge.item("Hide from This Shelf (keep window open)",()->hideTile(t)));
 	}
 
 	/** A pinned launcher for an open tool window: its menu command (with or without "..."), its title, its initials. */
 	private static Item launcherFor(Window w) {
 		String title = titleOf(w);
+		for(Shelf s:Shelf.defaults())for(Shelf.Section c:s.sections)for(Item item:c.items)if(item.args.equals(title))return item.copy();
 		String cmd = Menus.getCommands() != null && Menus.getCommands().get(title + "...") != null ? title + "..." : title;
 		return Shelf.launcher(cmd, title, Icons.initials(title), "");
 	}
@@ -726,6 +818,7 @@ final class ShelfView extends JComponent implements ImageListener {
 		m.add(Bridge.item("Run...", () -> MacroShelf.run(t.item)));
 		m.add(Bridge.item("Run on Images... (choose)", () -> MacroShelf.choose(t.item)));
 		m.add(Bridge.item("Edit Macro", () -> IJ.open(t.item.target)));
+		m.add(Bridge.item("Edit Button and Macro File...", () -> Editor.editShelf(t.item)));
 		m.add(Bridge.item("Rename, Initials or Icon...", () -> { if (editLook(t.item)) { Shelf.save(); rebuild(); } }));
 		m.add(Bridge.item("Remove from Shelf (the file stays)", () -> {
 			Shelf.checkpoint();
@@ -733,29 +826,54 @@ final class ShelfView extends JComponent implements ImageListener {
 			Shelf.save();
 			rebuild();
 		}));
-		addMoveItems(m, t.section, t.item);
+		addMoveItems(m,t);
 	}
 
-	private void addMoveItems(JPopupMenu m, final Shelf.Section c, final Item it) {
-		final int i = c.items.indexOf(it);
-		javax.swing.JMenuItem a = Bridge.item("Move Earlier", () -> swap(c, i, i - 1));
+	private void addMoveItems(JPopupMenu m, final Tile tile) {
+		List<Tile> order=tilesOf(tile.section);order.removeIf(t->t.kind.equals("add"));int at=-1;for(int n=0;n<order.size();n++)if(ShelfOrder.same(tile,order.get(n)))at=n;
+		final int i=at;
+		javax.swing.JMenuItem a = Bridge.item("Move Earlier", () -> moveTile(tile,-1));
 		a.setEnabled(i > 0);
-		javax.swing.JMenuItem b = Bridge.item("Move Later", () -> swap(c, i, i + 1));
-		b.setEnabled(i >= 0 && i < c.items.size() - 1);
+		javax.swing.JMenuItem b = Bridge.item("Move Later", () -> moveTile(tile,1));
+		b.setEnabled(i >= 0 && i < order.size() - 1);
 		m.add(a);
 		m.add(b);
 	}
 
-	private void swap(Shelf.Section c, int i, int j) {
-		if (i < 0 || j < 0 || i >= c.items.size() || j >= c.items.size()) return;
-		Shelf.checkpoint();
-		java.util.Collections.swap(c.items, i, j);
-		Shelf.save();
-		rebuild();
+	private void moveTile(Tile tile,int delta){
+		List<Tile> order=tilesOf(tile.section);order.removeIf(t->t.kind.equals("add"));int i=-1;
+		for(int n=0;n<order.size();n++)if(ShelfOrder.same(tile,order.get(n)))i=n;
+		if(i<0||i+delta<0||i+delta>=order.size())return;Shelf.checkpoint();java.util.Collections.swap(order,i,i+delta);ShelfOrder.apply(tile.section,order);Shelf.save();rebuild();
+	}
+	private void hideTile(Tile tile){Shelf.checkpoint();if(tile.imp!=null)tile.section.hiddenImages.put(tile.imp,true);else tile.section.hiddenWindows.add(ShelfOrder.windowKey(tile));Shelf.save();rebuild();}
+	private void pinTile(Tile tile,Item item){String old=ShelfOrder.windowKey(tile);tile.section.items.add(item);Tile pinned=new Tile();pinned.section=tile.section;pinned.item=item;replaceOrderKey(tile.section,old,ShelfOrder.windowKey(pinned));}
+	private static void replaceOrderKey(Shelf.Section section,String old,String replacement){for(int i=0;i<section.windowOrder.size();i++)if(section.windowOrder.get(i).equals(old))section.windowOrder.set(i,replacement);}
+	private void editImageLook(Tile tile){
+		Item look=tile.item==null?new Item(Item.Kind.COMMAND,""):tile.item.copy();look.label=nameOf(tile.imp);
+		if(!editLook(look))return;tile.section.imageLooks.put(tile.imp,look);imageNames.put(tile.imp,look.label);rebuild();
+	}
+	private void editLauncher(Shelf.Section section,Item item){
+		ij.gui.GenericDialog dialog=new ij.gui.GenericDialog(item==null?"Add Tool Launcher":"Edit Tool Launcher");
+		dialog.addStringField("Name:",item==null?"My tool":item.label,28);
+		dialog.addStringField("Command:",item==null?"ROI Manager...":item.target,28);
+		dialog.addStringField("Window title:",item==null?"ROI Manager":item.args,28);
+		dialog.addButton("Choose Command...",event->{String chosen=Editor.chooseCommand(dialog);if(chosen==null)return;
+			((java.awt.TextField)dialog.getStringFields().get(1)).setText(chosen);
+			if(item==null){String title=chosen.replaceAll("\\.\\.\\.$","");for(Shelf s:Shelf.defaults())for(Shelf.Section c:s.sections)for(Item entry:c.items)if(entry.target.equals(chosen))title=entry.args;
+				((java.awt.TextField)dialog.getStringFields().get(0)).setText(title);((java.awt.TextField)dialog.getStringFields().get(2)).setText(title);}});
+		dialog.addMessage("Command opens the tool when closed; Window title identifies its open window.\nRight-click the button to choose its initials, icon and colour.");
+		dialog.showDialog();if(dialog.wasCanceled())return;
+		String label=dialog.getNextString().trim(),command=dialog.getNextString().trim(),title=dialog.getNextString().trim();
+		if(command.isEmpty()||title.isEmpty()){IJ.error("Tool Launcher","Command and window title are required.");return;}
+		Shelf.checkpoint();if(item==null)section.items.add(Shelf.launcher(command,title,label.isEmpty()?title:label,""));
+		else{item.label=label;item.target=command;item.args=title;}
+		section.hiddenWindows.remove("window:"+title);Shelf.save();rebuild();
 	}
 
 	private void addMenu(final Shelf.Section c, MouseEvent e) {
-		if (c == null || !c.kind.equals(Shelf.MACROS)) return;
+		if(c==null)return;
+		if(c.kind.equals(Shelf.WINDOWS)){editLauncher(c,null);return;}
+		if(c.kind.equals(Shelf.IMAGES)){IJ.doCommand("Open...");return;}
 		JPopupMenu m = new JPopupMenu();
 		m.add(Bridge.item("Add Macro File (.ijm)...", () -> MacroShelf.addFile(c)));
 		m.add(Bridge.item("New Macro...", () -> MacroShelf.newMacro(c)));
@@ -794,6 +912,10 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	private void sectionMenu(JPopupMenu m, final Shelf.Section c) {
+		if(c.kind.equals(Shelf.WINDOWS))m.add(Bridge.item("Add Tool Launcher...",()->editLauncher(c,null)));
+		if(c.kind.equals(Shelf.IMAGES))m.add(Bridge.item("Open Image...",()->IJ.doCommand("Open...")));
+		if(c.kind.equals(Shelf.MACROS)){m.add(Bridge.item("Add Macro File...",()->MacroShelf.addFile(c)));m.add(Bridge.item("New Macro...",()->MacroShelf.newMacro(c)));}
+		if(!c.hiddenWindows.isEmpty()||!c.hiddenImages.isEmpty())m.add(Bridge.item("Show Hidden "+c.title(),()->{Shelf.checkpoint();c.hiddenWindows.clear();c.hiddenImages.clear();Shelf.save();rebuild();}));
 		JMenu move = new JMenu(c.title() + " Section");
 		String[][] places = {{"bottom", "To the Bottom Bar"}, {"top", "To a Bar at the Top"}, {"left", "As a Column beside the Toolbar"},
 			{"right", "As a Column at the Right Edge"}, {"float", "To a New Floating Bar"}};
@@ -806,10 +928,10 @@ final class ShelfView extends JComponent implements ImageListener {
 		final int i = shelf.sections.indexOf(c);
 		if (shelf.shown().size() > 1) {
 			move.addSeparator();
-			javax.swing.JMenuItem a = Bridge.item(shelf.horizontal() ? "Move Left" : "Move Up", () -> {
+			javax.swing.JMenuItem a = Bridge.item("Move Left", () -> {
 				Shelf.checkpoint(); java.util.Collections.swap(shelf.sections, i, i - 1); Shelf.save(); Shelf.showAll(); });
 			a.setEnabled(i > 0);
-			javax.swing.JMenuItem b = Bridge.item(shelf.horizontal() ? "Move Right" : "Move Down", () -> {
+			javax.swing.JMenuItem b = Bridge.item("Move Right", () -> {
 				Shelf.checkpoint(); java.util.Collections.swap(shelf.sections, i, i + 1); Shelf.save(); Shelf.showAll(); });
 			b.setEnabled(i < shelf.sections.size() - 1);
 			move.add(a);
