@@ -93,6 +93,30 @@ public class Side_Toolbar implements PlugIn {
 		OnTop.update();
 	}
 
+	/**
+	 * Adds a button for a macro file to the macro bar (see {@link Shelf#macroTarget}), for other plugins: Undo
+	 * History's Create Macro calls it. Returns "added", "present" when that bar already has a button for the file,
+	 * or "" when Side Toolbar is not showing or no bar shows a macro section.
+	 */
+	public static String addMacroButton(String path) {
+		final String[] out = {""};
+		Runnable r = () -> {
+			if (Dock.instance == null || !Shelf.enabled() || path == null) return;
+			Shelf.Section c = Shelf.macroTarget(Shelf.all, s -> s.view != null);
+			if (c == null) return;
+			File f = new File(path).getAbsoluteFile();
+			for (Item it : c.items) if (f.getPath().equals(it.target)) { out[0] = "present"; return; }
+			Shelf.checkpoint();
+			c.items.add(MacroShelf.itemFor(f));
+			Shelf.save();
+			Shelf.showAll();
+			out[0] = "added";
+		};
+		if (SwingUtilities.isEventDispatchThread()) r.run();
+		else try { SwingUtilities.invokeAndWait(r); } catch (Exception e) { IJ.log("Side Toolbar: " + e); }
+		return out[0];
+	}
+
 	/** Adds one "Undo History" button just above ">>", once, when the Undo History plugin is installed. */
 	static void addUndoHistoryButtonOnce() {
 		if (Prefs.get("sidetoolbar.undobutton", false)) return;
