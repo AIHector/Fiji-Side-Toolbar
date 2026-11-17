@@ -294,11 +294,18 @@ final class ShelfView extends JComponent implements ImageListener {
 		return null;
 	}
 
-	/** Visible tool windows: titled, not images, not the ImageJ window, not modal dialogs. */
+	/** Native image-backed tools are not editable data-image windows. Leave unknown subclasses as tools. */
+	static boolean isImageWindow(Window window) {
+		if (window == null) return false;
+		Class<?> type = window.getClass();
+		return type == ImageWindow.class || type == ij.gui.StackWindow.class;
+	}
+
+	/** Visible tool windows: titled, not data images, not the ImageJ window, not modal dialogs. */
 	static List<Window> toolWindows() {
 		List<Window> l = new ArrayList<Window>();
 		for (Window w : Window.getWindows()) {
-			if (!w.isVisible() || w instanceof ImageWindow || w == IJ.getInstance()) continue;
+			if (!w.isVisible() || isImageWindow(w) || w == IJ.getInstance()) continue;
 			if (w instanceof Dialog && ((Dialog) w).isModal()) continue;
 			String t = titleOf(w);
 			if (t == null || t.trim().isEmpty() || t.startsWith("Add Buttons") || t.equals("Edit Button")) continue;
@@ -312,7 +319,7 @@ final class ShelfView extends JComponent implements ImageListener {
 		int[] ids = WindowManager.getIDList();
 		if (ids != null) for (int id : ids) {
 			ImagePlus imp = WindowManager.getImage(id);
-			if (imp != null && imp.getWindow() != null && imp.getWindow().isVisible()) l.add(imp);
+			if (imp != null && isImageWindow(imp.getWindow()) && imp.getWindow().isVisible()) l.add(imp);
 		}
 		return l;
 	}

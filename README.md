@@ -317,3 +317,7 @@ On macOS with three displays (a laptop screen, a 2560 × 1440 monitor above it, 
 ## License
 
 MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
+
+## Version 0.2.5-dev1
+
+Histogram, Plot and other specialized image-backed windows appear as tools in the window shelf. Image thumbnails and batch-image actions include only ordinary ImageJ image and stack windows, so tool-rendering pixels are not offered as input images.
