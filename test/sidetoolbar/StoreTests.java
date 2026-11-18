@@ -120,7 +120,7 @@ public class StoreTests {
 		eq(1, d.size(), "one default shelf");
 		eq("bottom", d.get(0).place, "at the bottom");
 		eq("[windows, images, macros]", kinds(d.get(0)), "tools left, images centre, macros right");
-		eq(6, d.get(0).sections.get(0).items.size(), "six pinned tools by default");
+		eq(8, d.get(0).sections.get(0).items.size(), "eight pinned tools by default");
 		Shelf f = new Shelf();
 		f.place = "float"; f.x = 321; f.y = 654;
 		Shelf.Section m = new Shelf.Section(Shelf.MACROS);

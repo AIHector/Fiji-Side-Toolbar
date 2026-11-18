@@ -62,6 +62,8 @@ final class ShelfView extends JComponent implements ImageListener {
 	private final List<Tile> tiles = new ArrayList<Tile>();
 	private final List<Rectangle> sectionRects = new ArrayList<Rectangle>();
 	private final Map<ImagePlus, BufferedImage> thumbs = new WeakHashMap<ImagePlus, BufferedImage>();
+	private javax.swing.SwingWorker<BufferedImage, Void> thumbnailJob;
+	private boolean disposed;
 	private final Map<ImagePlus, Long> dirty = new WeakHashMap<ImagePlus, Long>();
 	private final Timer poll;
 	private Tile hover, pressed;
@@ -143,6 +145,8 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	void dispose() {
+		disposed = true;
+		if (thumbnailJob != null) thumbnailJob.cancel(true);
 		poll.stop();
 		cancelItemDrag();slide.stop();
 		tip.hide();
@@ -294,7 +298,7 @@ final class ShelfView extends JComponent implements ImageListener {
 		for (Item it : c.items) {
 			Tile t = new Tile();
 			t.section = c; t.kind = "window"; t.item = it;
-			for (Window w : matchable) if (it.args.equals(titleOf(w))) { t.window = w; break; }
+			for (Window w : matchable) if (MacroTools.matches(it, w)) { t.window = w; break; }
 			if (t.window != null) open.remove(t.window);
 			if (!c.hiddenWindows.contains(ShelfOrder.windowKey(t))) l.add(t);
 		}
@@ -308,7 +312,8 @@ final class ShelfView extends JComponent implements ImageListener {
 	}
 
 	static boolean isAvailable(Item it) {
-		if (it.target.equals("results") || it.target.equals("log")) return true;
+		if (it.target.equals("results") || it.target.equals("log")
+				|| MacroTools.isRecorder(it.target) || MacroTools.isEditor(it.target)) return true;
 		return Menus.getCommands() == null || Menus.getCommands().get(it.target) != null;
 	}
 
@@ -352,32 +357,42 @@ final class ShelfView extends JComponent implements ImageListener {
 	private void refresh() {
 		if(dragging!=null)return;
 		int sig = 17;
-		for (Window w : toolWindows()) sig = sig * 31 + System.identityHashCode(w);
+		for (Window w : toolWindows()) sig = (sig * 31 + System.identityHashCode(w)) * 31 + titleOf(w).hashCode();
 		for (ImagePlus imp : images()) sig = sig * 31 + imp.getID() + imp.getTitle().hashCode();
 		ImagePlus cur = WindowManager.getCurrentImage();
 		sig = sig * 31 + (cur == null ? 0 : cur.getID());
 		boolean changed = sig != signature;
 		signature = sig;
 		long now = System.currentTimeMillis();
+		boolean previewsChanged = false;
 		synchronized (dirty) {
-			for (Map.Entry<ImagePlus, Long> e : dirty.entrySet())
-				if (e.getValue() < now - 400) { thumbs.remove(e.getKey()); changed = true; }
-			dirty.keySet().removeIf(imp -> !thumbs.containsKey(imp));
+			java.util.Iterator<Map.Entry<ImagePlus, Long>> updates = dirty.entrySet().iterator();
+			while (updates.hasNext()) {
+				Map.Entry<ImagePlus, Long> update = updates.next();
+				if (update.getValue() >= now - 400) continue;
+				previewsChanged |= thumbs.remove(update.getKey()) != null;
+				updates.remove();
+			}
 		}
 		if (changed) {
 			int before = thickness();
 			rebuild();
 			if (!shelf.horizontal() && thickness() != before) Chrome.apply();
 			if (!shelf.docked()) placeFloating();
-		}
+		} else if (previewsChanged) repaint();
 	}
 
 	public void imageOpened(ImagePlus imp) { }
 
-	public void imageClosed(ImagePlus imp) { synchronized (dirty) { thumbs.remove(imp); dirty.remove(imp); } }
+	public void imageClosed(ImagePlus imp) {
+		synchronized (dirty) { dirty.remove(imp); }
+		SwingUtilities.invokeLater(() -> thumbs.remove(imp));
+	}
 
-	/** A preview is redrawn at most about twice a second, whatever the image does. */
-	public void imageUpdated(ImagePlus imp) { synchronized (dirty) { if (!dirty.containsKey(imp)) dirty.put(imp, System.currentTimeMillis()); } }
+	/** Coalesce notifications before requesting the next visible preview. */
+	public void imageUpdated(ImagePlus imp) {
+		synchronized (dirty) { dirty.putIfAbsent(imp, System.currentTimeMillis()); }
+	}
 
 	void placeFloating() {
 		int len = naturalLength();
@@ -421,6 +436,7 @@ final class ShelfView extends JComponent implements ImageListener {
 			Rectangle displayed=paintedRect(t);
 			if (clip != null && !clip.intersects(displayed)) continue;
 			Rectangle area = sectionRects.get(Math.max(0, shelf.shown().indexOf(t.section)));
+			if (!area.intersects(displayed)) continue;
 			Graphics2D gt = (Graphics2D) g.create();
 			gt.clip(area);
 			gt.translate(displayed.x-t.r.x,displayed.y-t.r.y);
@@ -491,25 +507,46 @@ final class ShelfView extends JComponent implements ImageListener {
 		}
 	}
 
-	/** A small picture of the image as it is shown now (current plane, LUT, display range). */
+	/** Painting uses cached images. One background job per shelf supplies missing visible previews. */
 	private BufferedImage thumb(ImagePlus imp, int w, int h) {
-		BufferedImage b = thumbs.get(imp);
-		if (b != null && (b.getWidth() == w || b.getHeight() == h)) return b;
-		try {
-			Image src = imp.getImage();
-			if (src == null) return null;
-			double f = Math.min(w / (double) imp.getWidth(), h / (double) imp.getHeight());
-			int tw = Math.max(1, (int) Math.round(imp.getWidth() * f)), th = Math.max(1, (int) Math.round(imp.getHeight() * f));
-			b = new BufferedImage(tw, th, BufferedImage.TYPE_INT_RGB);
-			Graphics2D g = b.createGraphics();
-			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-			g.drawImage(src, 0, 0, tw, th, null);
-			g.dispose();
-			thumbs.put(imp, b);
-			return b;
-		} catch (Throwable e) {
-			return null;
+		double scale = Math.min(w / (double) imp.getWidth(), h / (double) imp.getHeight());
+		int width = Math.max(1, (int) Math.round(imp.getWidth() * scale));
+		int height = Math.max(1, (int) Math.round(imp.getHeight() * scale));
+		BufferedImage cached = thumbs.get(imp);
+		if (cached != null && cached.getWidth() == width && cached.getHeight() == height) return cached;
+		if (thumbnailJob == null && !disposed) {
+			thumbnailJob = new javax.swing.SwingWorker<BufferedImage, Void>() {
+				protected BufferedImage doInBackground() {
+					Image source = imp.getImage();
+					if (source == null) return null;
+					BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+					Graphics2D graphics = result.createGraphics();
+					try {
+						graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+						graphics.drawImage(source, 0, 0, width, height, null);
+					} finally { graphics.dispose(); }
+					return result;
+				}
+
+				protected void done() {
+					thumbnailJob = null;
+					if (disposed) return;
+					try {
+						BufferedImage result = get();
+						if (result != null && imp.getWindow() != null) {
+							thumbs.put(imp, result);
+							repaint();
+						}
+					} catch (InterruptedException exception) {
+						Thread.currentThread().interrupt();
+					} catch (java.util.concurrent.ExecutionException | java.util.concurrent.CancellationException ignored) {
+						// A closing or changing image can be retried on the next paint.
+					}
+				}
+			};
+			thumbnailJob.execute();
 		}
+		return cached;
 	}
 
 	// ---------------------------------------------------------------- mouse
@@ -744,6 +781,7 @@ final class ShelfView extends JComponent implements ImageListener {
 
 	/** Opens a pinned tool that is closed. */
 	static void openTool(Item it) {
+		if (MacroTools.open(it.target)) return;
 		if (it.target.equals("results")) { ResultsTable.getResultsTable().show("Results"); return; }
 		if (it.target.equals("log")) { IJ.log(""); return; }
 		Runner.run(new Item(Item.Kind.COMMAND, it.target));
@@ -808,6 +846,7 @@ final class ShelfView extends JComponent implements ImageListener {
 	/** A pinned launcher for an open tool window: its menu command (with or without "..."), its title, its initials. */
 	private static Item launcherFor(Window w) {
 		String title = titleOf(w);
+		if (w instanceof ij.plugin.frame.Recorder) return Shelf.launcher("Recorder", title, "Rec", "");
 		for(Shelf s:Shelf.defaults())for(Shelf.Section c:s.sections)for(Item item:c.items)if(item.args.equals(title))return item.copy();
 		String cmd = Menus.getCommands() != null && Menus.getCommands().get(title + "...") != null ? title + "..." : title;
 		return Shelf.launcher(cmd, title, Icons.initials(title), "");
