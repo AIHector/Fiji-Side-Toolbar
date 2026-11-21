@@ -431,17 +431,22 @@ final class ShelfView extends JComponent implements ImageListener {
 			else g.drawLine(a.x + a.width + SEP / 2, 6, a.x + a.width + SEP / 2, getHeight() - 7);
 		}
 		Rectangle clip = g.getClipBounds();
+		List<Shelf.Section> sections = shelf.shown();
 		for (Tile t : tiles) {
 			if (ShelfOrder.same(t,dragging)) continue;
 			Rectangle displayed=paintedRect(t);
 			if (clip != null && !clip.intersects(displayed)) continue;
-			Rectangle area = sectionRects.get(Math.max(0, shelf.shown().indexOf(t.section)));
+			Rectangle area = sectionRects.get(Math.max(0, sections.indexOf(t.section)));
 			if (!area.intersects(displayed)) continue;
 			Graphics2D gt = (Graphics2D) g.create();
-			gt.clip(area);
-			gt.translate(displayed.x-t.r.x,displayed.y-t.r.y);
-			paintTile(gt, t);
-			gt.dispose();
+			try {
+				gt.clip(area);
+				if (!gt.hitClip(displayed.x, displayed.y, displayed.width, displayed.height)) continue;
+				gt.translate(displayed.x-t.r.x,displayed.y-t.r.y);
+				paintTile(gt, t);
+			} finally {
+				gt.dispose();
+			}
 		}
 		if(dragging!=null&&itemPointer!=null){
 			g.setColor(validDrop?Dock.ACCENT:new Color(190,70,70));g.setStroke(new BasicStroke(2f));
